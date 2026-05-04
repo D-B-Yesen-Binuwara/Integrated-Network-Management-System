@@ -20,7 +20,7 @@ import {
 const Dashboard = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  
+
   const [devices, setDevices] = useState([]);
   const [alarms, setAlarms] = useState([]);
   const [loading, setLoading] = useState(true);

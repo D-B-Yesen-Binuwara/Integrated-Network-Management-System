@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 
 function Login() {
   const navigate = useNavigate();
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
 
   const handleLogin = (e) => {
@@ -11,7 +11,7 @@ function Login() {
 
     const user = JSON.parse(localStorage.getItem("user"));
 
-    if (user && user.email === email && user.password === password) {
+    if (user && user.serviceNumber === identifier && user.password === password) {
       alert("Login success ✅");
       navigate("/dashboard");
     } else {
@@ -31,13 +31,13 @@ function Login() {
           <form onSubmit={handleLogin} className="space-y-5">
             <div>
               <label className="block text-sm font-medium text-slate-600 mb-2">
-                Email Address
+                Service Number
               </label>
               <input
-                type="email"
-                placeholder="Enter your email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                type="text"
+                placeholder="Enter your service number"
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
                 required
                 className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-200 outline-none transition-all duration-200 text-slate-700 placeholder-slate-400"
               />

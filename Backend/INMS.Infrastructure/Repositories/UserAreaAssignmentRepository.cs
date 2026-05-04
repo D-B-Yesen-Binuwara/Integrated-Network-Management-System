@@ -14,6 +14,13 @@ public class UserAreaAssignmentRepository : IUserAreaAssignmentRepository
         _context = context;
     }
 
+    public async Task<List<UserAreaAssignment>> GetAllByUserId(int userId)
+    {
+        return await _context.UserAreaAssignments
+            .Where(x => x.UserId == userId)
+            .ToListAsync();
+    }
+
     public async Task<UserAreaAssignment?> GetByUserId(int userId)
     {
         return await _context.UserAreaAssignments

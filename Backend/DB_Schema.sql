@@ -361,10 +361,44 @@ CREATE TABLE AccountRequest (
     CONSTRAINT FK_AccountRequest_LEA      FOREIGN KEY (LEAId)      REFERENCES LEA(LEAId)
 );
 
+/* 1. Add Geographical Columns to the User Table */
+ALTER TABLE [User] 
+ADD RegionId INT NULL,
+    ProvinceId INT NULL,
+    LEAId INT NULL;
 
+/* 2. Establish Foreign Key Constraints */
+-- Links User to the Region table
+ALTER TABLE [User]
+ADD CONSTRAINT FK_User_Region
+FOREIGN KEY (RegionId) REFERENCES Region(RegionId);
+
+-- Links User to the Province table
+ALTER TABLE [User]
+ADD CONSTRAINT FK_User_Province
+FOREIGN KEY (ProvinceId) REFERENCES Province(ProvinceId);
+
+-- Links User to the LEA table
+ALTER TABLE [User]
+ADD CONSTRAINT FK_User_LEA
+FOREIGN KEY (LEAId) REFERENCES LEA(LEAId);
+
+/* 3. Verify the changes */
+SELECT COLUMN_NAME, DATA_TYPE 
+FROM INFORMATION_SCHEMA.COLUMNS 
+WHERE TABLE_NAME = 'User';
 /*Add Alarm Id To Simulate Event --------------------------------------------- */
 ALTER TABLE SimulationEvent
 ADD AlarmId INT NULL;
+
+/* CLEANUP: Remove FirstName/LastName if they were added accidentally in previous runs */
+IF COL_LENGTH('User', 'FirstName') IS NOT NULL ALTER TABLE [User] DROP COLUMN FirstName;
+IF COL_LENGTH('User', 'LastName') IS NOT NULL ALTER TABLE [User] DROP COLUMN LastName;
+IF COL_LENGTH('User', 'ServiceNumber') IS NOT NULL ALTER TABLE [User] DROP COLUMN ServiceNumber;
+
+IF COL_LENGTH('AccountRequest', 'FirstName') IS NOT NULL ALTER TABLE AccountRequest DROP COLUMN FirstName;
+IF COL_LENGTH('AccountRequest', 'LastName') IS NOT NULL ALTER TABLE AccountRequest DROP COLUMN LastName;
+IF COL_LENGTH('AccountRequest', 'ServiceNumber') IS NOT NULL ALTER TABLE AccountRequest DROP COLUMN ServiceNumber;
 
 --------- vendor initialization ----------------------------
 -- Create Vendor table

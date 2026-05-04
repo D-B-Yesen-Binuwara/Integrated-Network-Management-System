@@ -24,7 +24,6 @@ const Navbar = ({ onToggle }) => {
         </button>
         <img src="/sltmobitel-logo.png" alt="SLTMobitel" className="h-10 w-auto object-contain" />
         <span className="text-lg font-bold tracking-wide text-white truncate">
-          Integrated Network Management System
         </span>
       </div>
 
