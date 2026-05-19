@@ -15,30 +15,88 @@ public class AccountRequestController : ControllerBase
         _service = service;
     }
 
+    // SUBMIT ACCOUNT REQUEST
     [HttpPost]
-    public async Task<IActionResult> Submit([FromBody] CreateAccountRequestDto dto)
+    public async Task<IActionResult> Submit(
+        [FromBody] CreateAccountRequestDto dto)
     {
-        await _service.Submit(dto);
-        return Ok();
+        try
+        {
+            await _service.Submit(dto);
+
+            return Ok(new
+            {
+                success = true,
+                message = "Account request submitted successfully"
+            });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new
+            {
+                success = false,
+                message = ex.Message
+            });
+        }
     }
 
+    // GET ALL ACCOUNT REQUESTS
     [HttpGet]
     public async Task<IActionResult> GetAll()
     {
-        return Ok(await _service.GetAll());
+        try
+        {
+            var requests = await _service.GetAll();
+
+            return Ok(requests);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new
+            {
+                success = false,
+                message = ex.Message
+            });
+        }
     }
 
+    // UPDATE REQUEST STATUS
     [HttpPatch("{id}/status")]
-    public async Task<IActionResult> UpdateStatus(int id, [FromBody] UpdateAccountRequestStatusDto dto)
+    public async Task<IActionResult> UpdateStatus(
+        int id,
+        [FromBody] UpdateAccountRequestStatusDto dto)
     {
-        var result = dto.Status switch
+        try
         {
-            "APPROVED" => await _service.Approve(id),
-            "REJECTED" => await _service.Reject(id),
-            _ => false
-        };
+            bool result = dto.Status.ToUpper() switch
+            {
+                "APPROVED" => await _service.Approve(id),
+                "REJECTED" => await _service.Reject(id),
+                _ => false
+            };
 
-        if (!result) return BadRequest("Request not found, already processed, or invalid status.");
-        return Ok();
+            if (!result)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Invalid request or already processed"
+                });
+            }
+
+            return Ok(new
+            {
+                success = true,
+                message = $"Request {dto.Status} successfully"
+            });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new
+            {
+                success = false,
+                message = ex.Message
+            });
+        }
     }
 }

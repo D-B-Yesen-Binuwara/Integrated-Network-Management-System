@@ -5,7 +5,7 @@ public record CreateAccountRequestDto(
     string Email,
     string ServiceId,
     int RoleId,
-    int RegionId,
+    int? RegionId,
     int? ProvinceId,
     int? LEAId
 );
@@ -19,7 +19,7 @@ public record AccountRequestResponseDto(
     string ServiceId,
     int RoleId,
     string? RoleName,
-    int RegionId,
+    int? RegionId,
     string? RegionName,
     int? ProvinceId,
     string? ProvinceName,

@@ -16,19 +16,17 @@ public class AccountRequest
     [Required, MaxLength(50)]
     public string ServiceId { get; set; } = string.Empty;
 
-    [Required]
     public int RoleId { get; set; }
-    public Role? Role { get; set; }
+public Role? Role { get; set; }
 
-    [Required]
-    public int RegionId { get; set; }
-    public Region? Region { get; set; }
+public int? RegionId { get; set; }
+public Region? Region { get; set; }
 
-    public int? ProvinceId { get; set; }
-    public Province? Province { get; set; }
+public int? ProvinceId { get; set; }
+public Province? Province { get; set; }
 
-    public int? LEAId { get; set; }
-    public LEA? LEA { get; set; }
+public int? LEAId { get; set; }
+public LEA? LEA { get; set; }
 
     public DateTime RequestedAt { get; set; } = DateTime.UtcNow;
 

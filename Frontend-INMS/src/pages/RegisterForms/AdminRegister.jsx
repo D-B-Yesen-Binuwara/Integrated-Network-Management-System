@@ -10,28 +10,42 @@ function AdminRegister({ onBack }) {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
-  const handleRegister = (e) => {
-    e.preventDefault();
+  const handleRegister = async (e) => {
+  e.preventDefault();
 
-    if (password !== confirmPassword) {
-      alert("Passwords do not match!");
-      return;
+  if (password !== confirmPassword) {
+    alert("Passwords do not match!");
+    return;
+  }
+
+  try {
+    const response = await fetch(
+      "http://localhost:5289/api/AccountRequest",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          fullName: fullName + " " + lastName,
+          email: email,
+          serviceId: serviceId,
+          roleId: 1,
+        }),
+      }
+    );
+
+    if (response.ok) {
+      alert("Request Sent Successfully ✅");
+      navigate("/login");
+    } else {
+      alert("Failed to send request");
     }
-
-    const user = {
-      fullName,
-      lastName,
-      serviceId,
-      email,
-      password,
-      role: "Admin",
-    };
-
-    localStorage.setItem("user", JSON.stringify(user));
-
-    alert("Registered Successfully ✅");
-    navigate("/login");
-  };
+  } catch (error) {
+    console.error(error);
+    alert("Server Error");
+  }
+};
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center p-4">

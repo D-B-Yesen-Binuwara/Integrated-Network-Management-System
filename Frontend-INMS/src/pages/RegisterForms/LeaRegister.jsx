@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from 'react-router-dom';
 
 function LeaRegister({ onBack }) {
@@ -13,31 +13,46 @@ function LeaRegister({ onBack }) {
   const [province, setProvince] = useState("");
   const [lea, setLea] = useState("");
 
-  const handleRegister = (e) => {
-    e.preventDefault();
+  const handleRegister = async (e) => {
+  e.preventDefault();
 
-    if (password !== confirmPassword) {
-      alert("Passwords do not match!");
-      return;
+  if (password !== confirmPassword) {
+    alert("Passwords do not match!");
+    return;
+  }
+
+  try {
+    const response = await fetch(
+      "http://localhost:5289/api/AccountRequest",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+       body: JSON.stringify({
+  fullName: fullName + " " + lastName,
+  email: email,
+  serviceId: serviceId,
+  roleId: 4,
+
+  regionId: Number(region),
+  provinceId: Number(province),
+  leaId: Number(lea)
+}),
+      }
+    );
+
+    if (response.ok) {
+      alert("Request Sent Successfully ✅");
+      navigate("/login");
+    } else {
+      alert("Failed to send request");
     }
-
-    const user = {
-      fullName,
-      lastName,
-      serviceId,
-      email,
-      password,
-      region,
-      province,
-      lea,
-      role: "LEA Officer",
-    };
-
-    localStorage.setItem("user", JSON.stringify(user));
-
-    alert("Registered Successfully ✅");
-    navigate("/login");
-  };
+  } catch (error) {
+    console.error(error);
+    alert("Server Error");
+  }
+};
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center p-4">
@@ -101,16 +116,15 @@ function LeaRegister({ onBack }) {
                 required
                 className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-200 outline-none transition-all duration-200 text-slate-700"
               >
-                <option value="">Select Region</option>
-                <option value="Western">Western</option>
-                <option value="Central">Central</option>
-                <option value="Southern">Southern</option>
-                <option value="Northern">Northern</option>
-                <option value="Eastern">Eastern</option>
-                <option value="North Western">North Western</option>
-                <option value="North Central">North Central</option>
-                <option value="Uva">Uva</option>
-                <option value="Sabaragamuwa">Sabaragamuwa</option>
+                <option value="1">Western</option>
+<option value="2">Central</option>
+<option value="3">Southern</option>
+<option value="4">Northern</option>
+<option value="5">Eastern</option>
+<option value="6">North Western</option>
+<option value="7">North Central</option>
+<option value="8">Uva</option>
+<option value="9">Sabaragamuwa</option>
               </select>
             </div>
 
@@ -125,15 +139,15 @@ function LeaRegister({ onBack }) {
                 className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-200 outline-none transition-all duration-200 text-slate-700"
               >
                 <option value="">Select Province</option>
-                <option value="Western Province">Western Province</option>
-                <option value="Central Province">Central Province</option>
-                <option value="Southern Province">Southern Province</option>
-                <option value="Northern Province">Northern Province</option>
-                <option value="Eastern Province">Eastern Province</option>
-                <option value="North Western Province">North Western Province</option>
-                <option value="North Central Province">North Central Province</option>
-                <option value="Uva Province">Uva Province</option>
-                <option value="Sabaragamuwa Province">Sabaragamuwa Province</option>
+                <option value="1">Western Province</option>
+<option value="2">Central Province</option>
+<option value="3">Southern Province</option>
+<option value="4">Northern Province</option>
+<option value="5">Eastern Province</option>
+<option value="6">North Western Province</option>
+<option value="7">North Central Province</option>
+<option value="8">Uva Province</option>
+<option value="9">Sabaragamuwa Province</option>
               </select>
             </div>
 
@@ -148,31 +162,31 @@ function LeaRegister({ onBack }) {
                 className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-200 outline-none transition-all duration-200 text-slate-700"
               >
                 <option value="">Select LEA</option>
-                <option value="Colombo">Colombo</option>
-                <option value="Gampaha">Gampaha</option>
-                <option value="Kalutara">Kalutara</option>
-                <option value="Kandy">Kandy</option>
-                <option value="Matale">Matale</option>
-                <option value="Nuwara Eliya">Nuwara Eliya</option>
-                <option value="Galle">Galle</option>
-                <option value="Matara">Matara</option>
-                <option value="Hambantota">Hambantota</option>
-                <option value="Jaffna">Jaffna</option>
-                <option value="Kilinochchi">Kilinochchi</option>
-                <option value="Mannar">Mannar</option>
-                <option value="Vavuniya">Vavuniya</option>
-                <option value="Mullaitivu">Mullaitivu</option>
-                <option value="Batticaloa">Batticaloa</option>
-                <option value="Ampara">Ampara</option>
-                <option value="Trincomalee">Trincomalee</option>
-                <option value="Kurunegala">Kurunegala</option>
-                <option value="Puttalam">Puttalam</option>
-                <option value="Anuradhapura">Anuradhapura</option>
-                <option value="Polonnaruwa">Polonnaruwa</option>
-                <option value="Badulla">Badulla</option>
-                <option value="Moneragala">Moneragala</option>
-                <option value="Ratnapura">Ratnapura</option>
-                <option value="Kegalle">Kegalle</option>
+                <option value="1">Colombo</option>
+<option value="2">Gampaha</option>
+<option value="3">Kalutara</option>
+<option value="4">Kandy</option>
+<option value="5">Matale</option>
+<option value="6">Nuwara Eliya</option>
+<option value="7">Galle</option>
+<option value="8">Matara</option>
+<option value="9">Hambantota</option>
+<option value="10">Jaffna</option>
+<option value="11">Kilinochchi</option>
+<option value="12">Mannar</option>
+<option value="13">Vavuniya</option>
+<option value="14">Mullaitivu</option>
+<option value="15">Batticaloa</option>
+<option value="16">Ampara</option>
+<option value="17">Trincomalee</option>
+<option value="18">Kurunegala</option>
+<option value="19">Puttalam</option>
+<option value="20">Anuradhapura</option>
+<option value="21">Polonnaruwa</option>
+<option value="22">Badulla</option>
+<option value="23">Moneragala</option>
+<option value="24">Ratnapura</option>
+<option value="25">Kegalle</option>
               </select>
             </div>
 

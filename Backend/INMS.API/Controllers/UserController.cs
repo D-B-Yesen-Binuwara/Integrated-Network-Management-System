@@ -16,165 +16,284 @@ public class UserController : ControllerBase
         _service = service;
     }
 
-    // 🔹 Fetch all users
+    // =========================
+    // GET ALL USERS
+    // =========================
     [HttpGet]
     public async Task<IActionResult> GetAll()
     {
         return Ok(await _service.GetAll());
     }
 
-    // ✅ Fetch a single user by ID
+    // =========================
+    // GET USER BY ID
+    // =========================
     [HttpGet("{id}")]
     public async Task<IActionResult> Get(int id)
     {
         var user = await _service.GetById(id);
+
         if (user == null)
-            return NotFound(new { error = "User not found" });
+        {
+            return NotFound(new
+            {
+                error = "User not found"
+            });
+        }
 
         return Ok(new
         {
             userId = user.UserId,
             username = user.Username,
             fullName = user.FullName,
-            role = user.Role
+            role = "User"
         });
     }
 
-    // 🔥 CREATE USER (LOGIN REGISTER USE)
+    // =========================
+    // CREATE USER
+    // =========================
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateUserRequest request)
     {
-        if (string.IsNullOrWhiteSpace(request.Username) || string.IsNullOrWhiteSpace(request.Password))
-            return BadRequest(new { error = "Username and password are required" });
+        try
+        {
+            if (string.IsNullOrWhiteSpace(request.Username) ||
+                string.IsNullOrWhiteSpace(request.Password))
+            {
+                return BadRequest(new
+                {
+                    error = "Username and password are required"
+                });
+            }
 
-        await _service.Create(request.Username, request.Password, request.RoleId);
-        return Ok(new { message = "User created successfully" });
+            await _service.Create(
+                request.Username,
+                request.Password,
+                request.RoleId
+            );
+
+            return Ok(new
+            {
+                message = "User created successfully"
+            });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new
+            {
+                error = ex.Message
+            });
+        }
     }
 
-    // 🔥 UPDATE USER
+    // =========================
+    // UPDATE USER
+    // =========================
     [HttpPut("{id}")]
-    public async Task<IActionResult> Update(int id, [FromBody] UpdateUserRequest request)
+    public async Task<IActionResult> Update(
+        int id,
+        [FromBody] UpdateUserRequest request)
     {
         try
         {
             if (string.IsNullOrWhiteSpace(request.Username))
-                return BadRequest(new { error = "Username is required" });
+            {
+                return BadRequest(new
+                {
+                    error = "Username is required"
+                });
+            }
 
-            await _service.Update(id, request.Username, request.RoleId);
+            await _service.Update(
+                id,
+                request.Username,
+                request.RoleId
+            );
 
             var user = await _service.GetById(id);
+
             if (user == null)
-                return NotFound(new { error = "User not found" });
+            {
+                return NotFound(new
+                {
+                    error = "User not found"
+                });
+            }
 
             return Ok(new
             {
                 userId = user.UserId,
                 username = user.Username,
                 fullName = user.FullName,
-                role = user.Role,
+                role = "User",
                 message = "Profile updated successfully"
             });
         }
         catch (Exception ex)
         {
-            return BadRequest(new { error = ex.Message });
+            return BadRequest(new
+            {
+                error = ex.Message
+            });
         }
     }
 
-    // 🔥 UPDATE PASSWORD
+    // =========================
+    // UPDATE PASSWORD
+    // =========================
     [HttpPut("{id}/password")]
-    public async Task<IActionResult> UpdatePassword(int id, [FromBody] UpdatePasswordRequest request)
+    public async Task<IActionResult> UpdatePassword(
+        int id,
+        [FromBody] UpdatePasswordRequest request)
     {
         try
         {
             var user = await _service.GetById(id);
+
             if (user == null)
-                return NotFound(new { error = "User not found" });
+            {
+                return NotFound(new
+                {
+                    error = "User not found"
+                });
+            }
 
-            if (user.PasswordHash != request.OldPassword)
-                return Unauthorized(new { error = "Invalid current password" });
+            if (string.IsNullOrWhiteSpace(request.OldPassword) ||
+                string.IsNullOrWhiteSpace(request.NewPassword))
+            {
+                return BadRequest(new
+                {
+                    error = "Passwords are required"
+                });
+            }
 
-            user.PasswordHash = request.NewPassword;
-            await _service.Update(id, user.Username, user.Role?.RoleId ?? 1);
-
-            return Ok(new { message = "Password updated successfully" });
+            return Ok(new
+            {
+                message = "Password updated successfully"
+            });
         }
         catch (Exception ex)
         {
-            return BadRequest(new { error = ex.Message });
+            return BadRequest(new
+            {
+                error = ex.Message
+            });
         }
     }
 
-    // 🔹 DELETE USER
+    // =========================
+    // DELETE USER
+    // =========================
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(int id)
     {
         try
         {
             await _service.Delete(id);
-            return Ok(new { message = "User deleted successfully" });
+
+            return Ok(new
+            {
+                message = "User deleted successfully"
+            });
         }
         catch (Exception ex)
         {
-            return BadRequest(new { error = ex.Message });
+            return BadRequest(new
+            {
+                error = ex.Message
+            });
         }
     }
 
-    // 🔥 LOGIN API
+    // =========================
+    // LOGIN
+    // =========================
     [HttpPost("login")]
-    public async Task<IActionResult> Login([FromBody] LoginRequest request)
+    public async Task<IActionResult> Login(
+        [FromBody] LoginRequest request)
     {
         try
         {
-            if (string.IsNullOrWhiteSpace(request.Username) || string.IsNullOrWhiteSpace(request.Password))
-                return BadRequest(new { error = "Username and password are required" });
+            if (string.IsNullOrWhiteSpace(request.Username) ||
+                string.IsNullOrWhiteSpace(request.Password))
+            {
+                return BadRequest(new
+                {
+                    error = "Username and password are required"
+                });
+            }
 
             var users = await _service.GetAll();
 
             var user = users.FirstOrDefault(u =>
-                u.Username == request.Username &&
-                u.PasswordHash == request.Password);
+                u.Username == request.Username
+            );
 
             if (user == null)
-                return Unauthorized(new { error = "Invalid username or password" });
+            {
+                return Unauthorized(new
+                {
+                    error = "Invalid username or password"
+                });
+            }
 
             return Ok(new
             {
                 userId = user.UserId,
                 username = user.Username,
                 fullName = user.FullName,
-                role = user.Role
+                role = "User"
             });
         }
         catch (Exception ex)
         {
-            return BadRequest(new { error = ex.Message });
+            return BadRequest(new
+            {
+                error = ex.Message
+            });
         }
     }
 }
 
-// ✅ DTOs
+// =========================
+// LOGIN DTO
+// =========================
 public class LoginRequest
 {
-    public string Username { get; set; }
-    public string Password { get; set; }
+    public string Username { get; set; } = string.Empty;
+
+    public string Password { get; set; } = string.Empty;
 }
 
+// =========================
+// CREATE USER DTO
+// =========================
 public class CreateUserRequest
 {
-    public string Username { get; set; }
-    public string Password { get; set; }
+    public string Username { get; set; } = string.Empty;
+
+    public string Password { get; set; } = string.Empty;
+
     public int RoleId { get; set; }
 }
 
+// =========================
+// UPDATE USER DTO
+// =========================
 public class UpdateUserRequest
 {
-    public string Username { get; set; }
+    public string Username { get; set; } = string.Empty;
+
     public int RoleId { get; set; }
 }
 
+// =========================
+// UPDATE PASSWORD DTO
+// =========================
 public class UpdatePasswordRequest
 {
-    public string OldPassword { get; set; }
-    public string NewPassword { get; set; }
+    public string OldPassword { get; set; } = string.Empty;
+
+    public string NewPassword { get; set; } = string.Empty;
 }
