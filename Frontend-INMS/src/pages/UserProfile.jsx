@@ -14,26 +14,27 @@ const UserProfile = () => {
         confirmPassword: ''
     });
 
-    useEffect(() => {
-        // Simulate an API call mapping to User.cs
-        setTimeout(() => {
-            setUserData({
-                userId: '748392',
-                username: 'janedoe99',
-                fullName: 'Jane Doe',
-                passwordHash: 'N0c0perat0r_pwd!', // Simulated real password
-                roleId: 'ROLE_ENGINEER_2',
-                role: 'Network Operations Engineer',
-                stats: {
-                    alarmsResolved: 342,
-                    activeSimulations: 3,
-                    criticalAlertsHandled: 89,
-                    uptimeContributions: '99.98%'
-                }
-            });
-            setLoading(false);
-        }, 500);
-    }, []);
+   useEffect(() => {
+    const user = JSON.parse(localStorage.getItem("user"));
+
+    if (user) {
+        setUserData({
+            userId: user.serviceId,
+            username: user.email,
+            fullName: `${user.fullName} ${user.lastName}`,
+            passwordHash: user.password,
+            role: user.role,
+            stats: {
+                alarmsResolved: 0,
+                activeSimulations: 0,
+                criticalAlertsHandled: 0,
+                uptimeContributions: "0%"
+            }
+        });
+    }
+
+    setLoading(false);
+}, []);
 
     const handleEditClick = () => {
         setEditFormData({ ...userData });
@@ -188,14 +189,16 @@ const UserProfile = () => {
                             </table>
 
                             <div className="flex flex-col sm:flex-row gap-4 pt-5 border-t border-slate-100">
-                                <button 
-                                    onClick={handleEditClick}
-                                    className="flex-1 bg-white hover:bg-slate-50 text-slate-700 text-sm font-semibold py-2.5 rounded-lg border border-slate-300 shadow-sm transition-all hover:shadow">
-                                    Edit Profile
-                                </button>
-                                <button className="flex-1 bg-white hover:bg-red-50 text-red-600 text-sm font-semibold py-2.5 rounded-lg border border-red-200 shadow-sm transition-all hover:border-red-300">
-                                    Delete Profile
-                                </button>
+                                <button
+    onClick={() => {
+        localStorage.removeItem("user");
+        alert("Profile deleted successfully ✅");
+        window.location.href = "/register";
+    }}
+    className="flex-1 bg-white hover:bg-red-50 text-red-600 text-sm font-semibold py-2.5 rounded-lg border border-red-200 shadow-sm transition-all hover:border-red-300"
+>
+    Delete Profile
+</button>
                             </div>
                         </div>
                     </div>
