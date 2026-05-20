@@ -13,5 +13,8 @@ namespace INMS.Domain.Entities
 
         [MaxLength(255)]
         public string? Description { get; set; }
+
+        // Indicates whether this role is a platform admin (MSAN/CEAN/SLBN)
+        public bool IsPlatformAdmin { get; set; } = false;
     }
 }

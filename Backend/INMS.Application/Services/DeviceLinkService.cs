@@ -30,6 +30,9 @@ namespace INMS.Application.Services
             if (parent == null || child == null)
                 throw new Exception("Device not found");
 
+            if (parent.IsDeleted || child.IsDeleted)
+                throw new Exception("Cannot create link involving a deleted device");
+
             if (!IsValidTopology(parent.DeviceType, child.DeviceType))
                 throw new Exception("Invalid topology: Parent-child relationship not allowed");
 
@@ -61,42 +64,35 @@ namespace INMS.Application.Services
         // Uses a recursive CTE to check if childId is already an ancestor of parentId.
         private async Task<bool> WouldCreateCycleAsync(int parentId, int childId)
         {
-            var sql = $"""
-                WITH Ancestors AS (
+            var sql = @"WITH Ancestors AS (
                     SELECT ParentDeviceId AS AncestorId
                     FROM DeviceLink
-                    WHERE ChildDeviceId = {parentId}
+                    WHERE ChildDeviceId = {0}
                     UNION ALL
                     SELECT dl.ParentDeviceId
                     FROM DeviceLink dl
                     INNER JOIN Ancestors a ON dl.ChildDeviceId = a.AncestorId
                 )
-                SELECT CAST(CASE WHEN EXISTS (SELECT 1 FROM Ancestors WHERE AncestorId = {childId}) THEN 1 ELSE 0 END AS BIT)
-                OPTION (MAXRECURSION 1000)
-                """;
+                SELECT CAST(CASE WHEN EXISTS (SELECT 1 FROM Ancestors WHERE AncestorId = {1}) THEN 1 ELSE 0 END AS BIT)
+                OPTION (MAXRECURSION 1000)";
 
-            return await _context.Database.SqlQueryRaw<bool>(sql).FirstAsync();
+            return await _context.Database.SqlQueryRaw<bool>(sql, parentId, childId).FirstAsync();
         }
 
         // Enforces allowed parent-child device type combinations.
         private bool IsValidTopology(DeviceType parentType, DeviceType childType)
         {
-            switch (parentType)
+            // Topology policy (root → leaf):
+            // SLBN -> CEAN
+            // CEAN -> MSAN
+            // MSAN -> none (leaf)
+            return parentType switch
             {
-                case DeviceType.SLBN:
-                    return childType == DeviceType.SLBN
-                        || childType == DeviceType.CEAN;
-
-                case DeviceType.CEAN:
-                    return childType == DeviceType.MSAN
-                        || childType == DeviceType.Customer;
-
-                case DeviceType.MSAN:
-                    return childType == DeviceType.Customer;
-
-                default:
-                    return false;
-            }
+                DeviceType.SLBN => childType == DeviceType.CEAN,
+                DeviceType.CEAN => childType == DeviceType.MSAN,
+                DeviceType.MSAN => false,
+                _ => false
+            };
         }
     }
 }

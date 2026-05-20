@@ -8,6 +8,7 @@ namespace INMS.API.Controllers
 {
     [Route("api/device")]
     [ApiController]
+    [Consumes("application/json")]
     public class DeviceController : ControllerBase
     {
         private readonly IDeviceService _deviceService;

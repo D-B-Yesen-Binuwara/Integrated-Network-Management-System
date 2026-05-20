@@ -21,6 +21,11 @@ public class AccountRequestService : IAccountRequestService
 
     public async Task Submit(CreateAccountRequestDto dto)
     {
+        // Prevent users requesting platform admin roles via the public account request flow
+        var requestedRole = await _context.Roles.FindAsync(dto.RoleId);
+        if (requestedRole != null && requestedRole.IsPlatformAdmin)
+            throw new Exception("Cannot request a platform admin role. Contact super admin.");
+
         var request = new AccountRequest
         {
             FullName = dto.FullName,

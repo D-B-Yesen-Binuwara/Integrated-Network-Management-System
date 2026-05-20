@@ -1,23 +1,23 @@
 using Microsoft.AspNetCore.Mvc;
 using INMS.Application.Interfaces;
 using INMS.Domain.Entities;
+using Microsoft.EntityFrameworkCore;
 using System.Linq;
 
 namespace INMS.API.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Consumes("application/json")]
     public class DeviceLinkController : ControllerBase
     {
         private readonly IDeviceLinkService _service;
-        private readonly INMS.Application.Interfaces.IDeviceService _deviceService;
-        private readonly INMS.Domain.Interfaces.IUserRepository _userRepository;
+        private readonly INMS.Infrastructure.Persistence.AppDbContext _context;
 
-        public DeviceLinkController(IDeviceLinkService service, INMS.Application.Interfaces.IDeviceService deviceService, INMS.Domain.Interfaces.IUserRepository userRepository)
+        public DeviceLinkController(IDeviceLinkService service, INMS.Infrastructure.Persistence.AppDbContext context)
         {
             _service = service;
-            _deviceService = deviceService;
-            _userRepository = userRepository;
+            _context = context;
         }
 
         private int? GetCallerUserIdFromHeader()
@@ -30,37 +30,45 @@ namespace INMS.API.Controllers
 
             return userId;
         }
-        {
-            var idHeader = HttpContext.Request.Headers["X-User-Id"].FirstOrDefault();
-            if (string.IsNullOrEmpty(idHeader) || !int.TryParse(idHeader, out var userId))
-            {
-                return (string.Empty, null);
-            }
-
-            var user = await _userRepository.GetById(userId);
-            if (user == null) return (string.Empty, null);
-
-            return (user.Role?.RoleName ?? string.Empty, user.Layer);
-        }
 
         // Create a parent-child link between two devices
+        // Enforces: platform admins may only create links whose PARENT device is in their layer.
         [HttpPost]
         public async Task<IActionResult> CreateLink(CreateLinkRequest request)
         {
             var callerId = GetCallerUserIdFromHeader();
 
+            // If caller is a platform admin, ensure the parent belongs to their layer
+            if (callerId.HasValue)
+            {
+                var user = await _context.Users.Include(u => u.Role).FirstOrDefaultAsync(u => u.UserId == callerId.Value);
+                if (user != null && user.Role != null && user.Role.IsPlatformAdmin)
+                {
+                    var parent = await _context.Devices.FindAsync(request.ParentDeviceId);
+                    if (parent == null) return BadRequest("Parent device not found");
+
+                    var roleName = user.Role.RoleName?.ToLower() ?? string.Empty;
+                    var allowed = roleName.Contains("msan") ? parent.DeviceType == INMS.Domain.Enums.DeviceType.MSAN
+                               : roleName.Contains("cean") ? parent.DeviceType == INMS.Domain.Enums.DeviceType.CEAN
+                               : roleName.Contains("slbn") ? parent.DeviceType == INMS.Domain.Enums.DeviceType.SLBN
+                               : false;
+
+                    if (!allowed) return StatusCode(403, "Platform admin can only create links from devices in their layer");
+                }
+            }
+
             try
             {
-                var parent = await _deviceService.GetByIdAsync(request.ParentDeviceId, callerId);
-                var child = await _deviceService.GetByIdAsync(request.ChildDeviceId, callerId);
-                if (parent == null || child == null) return NotFound();
-
                 var link = await _service.CreateLinkAsync(request.ParentDeviceId, request.ChildDeviceId);
                 return Ok(link);
             }
             catch (UnauthorizedAccessException)
             {
                 return Forbid();
+            }
+            catch (System.Exception ex)
+            {
+                return BadRequest(ex.Message);
             }
         }
 

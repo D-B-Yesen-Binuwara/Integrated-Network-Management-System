@@ -1,0 +1,53 @@
+Changes made to implement platform-admin layer isolation, topology policy, and soft-delete:
+
+1) Domain changes
+- Updated Role entity: added `IsPlatformAdmin` boolean flag.
+- Updated Device entity: added `IsDeleted` boolean for soft-delete.
+
+2) Database schema / seeds
+- Updated `Backend/DB_Schema.sql`:
+  - Seeded new roles: `MSAN Admin`, `CEAN Admin`, `SLBN Admin`.
+  - Added script to add `IsPlatformAdmin` column to `Role` table and mark the seeded platform roles.
+
+3) Account request flow
+- `INMS.Application.Services.AccountRequestService`:
+  - Prevent public account requests for roles where `IsPlatformAdmin == true` (throws an exception and asks to contact super admin).
+
+4) User creation restrictions
+- `INMS.API.Controllers.UserController`:
+  - Only a super admin (`Role.Name == "Admin"`) may create accounts with a platform-admin role. The API expects an `X-User-Id` header identifying the actor.
+
+5) Topology policy & link creation
+- `INMS.Application.Services.DeviceLinkService`:
+  - Updated topology policy to the requested rules: MSAN -> CEAN, CEAN -> SLBN, SLBN -> none.
+  - Prevent creating links involving soft-deleted devices.
+
+- `INMS.API.Controllers.DeviceLinkController`:
+  - Enforces that when an `X-User-Id` header is provided and the actor is a platform admin, they may only create links where the parent device belongs to their layer.
+  - Keeps existing cycle and topology validation in the service.
+
+6) Soft-delete behaviour
+- `INMS.Infrastructure.Repositories.DeviceRepository`:
+  - Repository queries now exclude devices where `IsDeleted == true`.
+
+- `INMS.Application.Services.DeviceService`:
+  - Queries used for dashboard and map exclude soft-deleted devices.
+  - `DeleteAsync` now performs a soft-delete: sets `IsDeleted = true`, marks `Status = DOWN`, and sets related device links to `LinkStatus = "INACTIVE"`. Related alarms, root causes and history are preserved for audit and topology trace.
+
+Notes & How to use
+- Platform admin accounts (`MSAN Admin`, `CEAN Admin`, `SLBN Admin`) must be created by the super admin through the `POST /api/user` endpoint. The caller must include `X-User-Id` header with the super admin's user id. Example:
+
+  X-User-Id: 1
+
+- Platform admins should include `X-User-Id` when calling `POST /api/devicelink` so requests are validated against their layer.
+
+- Account requests (public) that ask for a platform-admin role will be rejected.
+
+Follow-ups you may want:
+- Add proper authentication/authorization middleware (ASP.NET Identity / JWT) to avoid relying on `X-User-Id` headers.
+- Add migration to update the database schema (EF Core migration) rather than relying on the SQL script edits.
+- Implement minimal read-only visibility for connected cross-layer devices in APIs to support UI flows.
+
+If you want, I can:
+- Add an EF Core migration for these DB changes.
+- Add unit tests for the topology policy and soft-delete behaviour.

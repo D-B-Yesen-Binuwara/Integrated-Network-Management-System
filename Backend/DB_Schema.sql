@@ -206,6 +206,19 @@ INSERT INTO Role (Name) VALUES
 ('Province Officer'),
 ('LEA Officer');
 
+-- Add platform admin roles (only created by super Admin)
+INSERT INTO Role (Name, Description) VALUES
+('MSAN Admin', 'Platform admin for MSAN layer'),
+('CEAN Admin', 'Platform admin for CEAN layer'),
+('SLBN Admin', 'Platform admin for SLBN layer');
+
+-- Mark platform admin roles in schema (if upgrading existing DB add column)
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Role' AND COLUMN_NAME = 'IsPlatformAdmin')
+BEGIN
+    ALTER TABLE Role ADD IsPlatformAdmin BIT NOT NULL DEFAULT 0;
+    UPDATE Role SET IsPlatformAdmin = 1 WHERE Name IN ('MSAN Admin','CEAN Admin','SLBN Admin');
+END
+
 USE INMS_SLT;
 SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Role';
 

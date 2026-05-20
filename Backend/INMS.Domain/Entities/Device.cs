@@ -45,5 +45,9 @@ namespace INMS.Domain.Entities
         public User? AssignedUser { get; set; }
 
         public bool IsSimulatedDown { get; set; } = false;
+        // Soft-delete flag. When true the device is considered removed but retained for audit/topology trace.
+        public bool IsDeleted { get; set; } = false;
+
+
     }
 }

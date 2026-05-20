@@ -1,6 +1,7 @@
 using INMS.Application.Services;
 using INMS.Application.DTOs;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace INMS.API.Controllers;
 
@@ -9,10 +10,12 @@ namespace INMS.API.Controllers;
 public class UserController : ControllerBase
 {
     private readonly IUserService _service;
+    private readonly INMS.Infrastructure.Persistence.AppDbContext _context;
 
-    public UserController(IUserService service)
+    public UserController(IUserService service, INMS.Infrastructure.Persistence.AppDbContext context)
     {
         _service = service;
+        _context = context;
     }
 
     // Fetch all users
@@ -33,6 +36,22 @@ public class UserController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateUserDto dto)
     {
+        // If creating a platform admin, only a super Admin may perform this action
+        if (dto.RoleId > 0)
+        {
+            var role = await _context.Roles.FindAsync(dto.RoleId);
+            if (role != null && role.IsPlatformAdmin)
+            {
+                // Expect X-User-Id header for the actor
+                if (!Request.Headers.TryGetValue("X-User-Id", out var vals) || !int.TryParse(vals.FirstOrDefault(), out var actorId))
+                    return Forbid("Creating a platform admin requires super admin authorization");
+
+                var actor = await _context.Users.Include(u => u.Role).FirstOrDefaultAsync(u => u.UserId == actorId);
+                if (actor == null || actor.Role == null || actor.Role.RoleName != "Admin")
+                    return Forbid("Only super admin may create platform admin accounts");
+            }
+        }
+
         await _service.CreateFromDto(dto);
         return Ok(new { message = "User created successfully" });
     }

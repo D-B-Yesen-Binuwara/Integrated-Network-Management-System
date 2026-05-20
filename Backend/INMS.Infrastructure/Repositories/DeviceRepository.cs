@@ -16,12 +16,12 @@ public class DeviceRepository : IDeviceRepository
 
     public async Task<Device?> GetByIdAsync(int id)
     {
-        return await _context.Devices.FindAsync(id);
+        return await _context.Devices.Where(d => !d.IsDeleted).FirstOrDefaultAsync(d => d.DeviceId == id);
     }
 
     public async Task<List<Device>> GetAllAsync()
     {
-        return await _context.Devices.ToListAsync();
+        return await _context.Devices.Where(d => !d.IsDeleted).ToListAsync();
     }
 
     public async Task AddAsync(Device device)
@@ -39,7 +39,7 @@ public class DeviceRepository : IDeviceRepository
     public async Task<List<Device>> GetDevicesByLeaAsync(int leaId)
     {
         return await _context.Devices
-            .Where(d => d.LEAId == leaId)
+            .Where(d => d.LEAId == leaId && !d.IsDeleted)
             .ToListAsync();
     }
 
@@ -50,7 +50,7 @@ public class DeviceRepository : IDeviceRepository
                 d => d.LEAId,
                 l => l.LEAId,
                 (d, l) => new { Device = d, LEA = l })
-            .Where(x => x.LEA.ProvinceId == provinceId)
+            .Where(x => x.LEA.ProvinceId == provinceId && !x.Device.IsDeleted)
             .Select(x => x.Device)
             .ToListAsync();
     }
@@ -66,7 +66,7 @@ public class DeviceRepository : IDeviceRepository
                 x => x.LEA.ProvinceId,
                 p => p.ProvinceId,
                 (x, p) => new { x.Device, Province = p })
-            .Where(x => x.Province.RegionId == regionId)
+            .Where(x => x.Province.RegionId == regionId && !x.Device.IsDeleted)
             .Select(x => x.Device)
             .ToListAsync();
     }
@@ -74,7 +74,7 @@ public class DeviceRepository : IDeviceRepository
     public async Task<List<Device>> GetDevicesByDeviceTypeAsync(INMS.Domain.Enums.DeviceType deviceType)
     {
         return await _context.Devices
-            .Where(d => d.DeviceType == deviceType)
+            .Where(d => d.DeviceType == deviceType && !d.IsDeleted)
             .ToListAsync();
     }
 }
