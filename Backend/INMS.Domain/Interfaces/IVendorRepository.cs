@@ -6,9 +6,7 @@ namespace INMS.Domain.Interfaces;
 public interface IVendorRepository
 {
     Task<Vendor?> GetByIdAsync(int id);
-    Task<Vendor?> GetByIdWithDevicesAsync(int id);
     Task<List<Vendor>> GetAllAsync();
-    Task<List<Vendor>> GetAllWithDevicesAsync();
     Task<List<Vendor>> GetByDeviceTypeAsync(DeviceType deviceType);
     Task<List<Vendor>> GetByBrandAsync(string brand);
     Task<bool> ExistsAsync(string name, string brand, DeviceType deviceType, int? excludeId = null);

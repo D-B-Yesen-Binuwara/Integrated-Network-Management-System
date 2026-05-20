@@ -15,8 +15,8 @@ public class HeartbeatFailureDetectionService : BackgroundService
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<HeartbeatFailureDetectionService> _logger;
-    private const int CheckIntervalSeconds = 10;
-    private const int FailureTimeoutSeconds = 30;
+    private const int CheckIntervalSeconds = 30; // Reduced frequency
+    private const int FailureTimeoutSeconds = 60; // Increased timeout
 
     public HeartbeatFailureDetectionService(
         IServiceProvider serviceProvider,
@@ -55,6 +55,7 @@ public class HeartbeatFailureDetectionService : BackgroundService
         var impactAnalysisService = scope.ServiceProvider.GetRequiredService<IImpactAnalysisService>();
         var currentTime = DateTime.UtcNow;
 
+        // Get devices for status updates (need full entities)
         var devices = await context.Devices.ToListAsync();
 
         var deviceLinks = await context.DeviceLinks
@@ -62,11 +63,22 @@ public class HeartbeatFailureDetectionService : BackgroundService
             .ToListAsync();
 
         var deviceIds = devices.Select(d => d.DeviceId).ToList();
-        var latestHeartbeats = await context.Heartbeats
-            .Where(h => deviceIds.Contains(h.DeviceId))
-            .GroupBy(h => h.DeviceId)
-            .Select(g => g.OrderByDescending(h => h.Timestamp).First())
-            .ToDictionaryAsync(h => h.DeviceId);
+        
+        // Optimize: Get latest heartbeat per device with a simpler query
+        var latestHeartbeats = new Dictionary<int, Domain.Entities.Heartbeat>();
+        
+        foreach (var deviceId in deviceIds)
+        {
+            var latestHeartbeat = await context.Heartbeats
+                .Where(h => h.DeviceId == deviceId)
+                .OrderByDescending(h => h.Timestamp)
+                .FirstOrDefaultAsync();
+                
+            if (latestHeartbeat != null)
+            {
+                latestHeartbeats[deviceId] = latestHeartbeat;
+            }
+        }
 
         var parentIdsByChild = deviceLinks
             .GroupBy(dl => dl.ChildDeviceId)

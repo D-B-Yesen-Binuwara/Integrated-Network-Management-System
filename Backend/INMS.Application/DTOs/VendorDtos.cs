@@ -44,6 +44,5 @@ public record VendorDto(
     DeviceType DeviceType,
     string? Description,
     bool IsActive,
-    DateTime CreatedAt,
-    int DeviceCount
+    DateTime CreatedAt
 );

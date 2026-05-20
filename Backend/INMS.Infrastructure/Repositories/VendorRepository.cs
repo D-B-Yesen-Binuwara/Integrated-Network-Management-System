@@ -21,23 +21,9 @@ public class VendorRepository : IVendorRepository
             .FirstOrDefaultAsync(v => v.VendorId == id);
     }
 
-    public async Task<Vendor?> GetByIdWithDevicesAsync(int id)
-    {
-        return await _context.Vendors
-            .Include(v => v.Devices)
-            .FirstOrDefaultAsync(v => v.VendorId == id);
-    }
-
     public async Task<List<Vendor>> GetAllAsync()
     {
         return await _context.Vendors.ToListAsync();
-    }
-
-    public async Task<List<Vendor>> GetAllWithDevicesAsync()
-    {
-        return await _context.Vendors
-            .Include(v => v.Devices)
-            .ToListAsync();
     }
 
     public async Task<List<Vendor>> GetByDeviceTypeAsync(DeviceType deviceType)

@@ -1,4 +1,3 @@
-
 import { NavLink as RouterNavLink } from 'react-router-dom';
 
 // Custom NavLink component for styled navigation links
@@ -26,6 +25,7 @@ export default function Sidebar({ collapsed }) {
     <div
       className={`bg-gradient-to-b from-slate-900 to-slate-800 text-sky-100 flex flex-col shadow-lg border-r border-emerald-400/40 transition-all duration-300 fixed left-0 top-16 bottom-0 z-40 ${collapsed ? 'w-16' : 'w-64'}`}
     >
+      {/* Navigation links section */}
       <div className="flex-1 overflow-y-auto py-4">
         <nav className="flex flex-col gap-1 px-2">
           <NavLink to="/dashboard" collapsed={collapsed} label="Dashboard">
@@ -64,6 +64,7 @@ export default function Sidebar({ collapsed }) {
         </nav>
       </div>
 
+      {/* Logout button section */}
       <div className="p-3 border-t border-emerald-400/40">
         <button className={`flex items-center gap-2 w-full px-4 py-2 rounded hover:bg-white-500/20 transition font-medium text-white-400 hover:text-red-300 ${collapsed ? 'justify-center' : ''}`}>
           <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>

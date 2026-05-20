@@ -1,3 +1,5 @@
+using INMS.Application.Services;
+
 namespace INMS.Application.Interfaces;
 
 // Service for analyzing network failures and their impact on dependent devices.
@@ -23,4 +25,8 @@ public interface IImpactAnalysisService
     // Clears all active alarms for a device and its downstream impacted devices.
     // Called when a failed device recovers.
     Task ClearAlarmsAsync(int deviceId);
+
+    // NEW: Analyzes impact for any device by finding root causes and affected devices
+    // This is the main method for the enhanced impact analysis
+    Task<ImpactAnalysisResult> AnalyzeDeviceImpactAsync(int deviceId);
 }

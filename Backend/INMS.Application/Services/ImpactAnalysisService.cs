@@ -1,4 +1,5 @@
 using INMS.Application.Interfaces;
+using INMS.Application.Services;
 using INMS.Domain.Entities;
 using INMS.Domain.Enums;
 using INMS.Infrastructure.Persistence;
@@ -489,5 +490,109 @@ public class ImpactAnalysisService : IImpactAnalysisService
         }
 
         return impacted;
+    }
+
+    /// <summary>
+    /// Placeholder implementation for the new enhanced method.
+    /// This maintains interface compatibility while the enhanced service is being integrated.
+    /// </summary>
+    public async Task<ImpactAnalysisResult> AnalyzeDeviceImpactAsync(int deviceId)
+    {
+        // For now, return a basic result using existing logic
+        var device = await _context.Devices
+            .Include(d => d.LEA)
+            .ThenInclude(lea => lea!.Province)
+            .ThenInclude(p => p!.Region)
+            .FirstOrDefaultAsync(d => d.DeviceId == deviceId);
+
+        if (device == null)
+        {
+            throw new ArgumentException($"Device with ID {deviceId} not found.");
+        }
+
+        var rootCause = await _context.RootCauses
+            .Where(rc => rc.RootCauseDeviceId == deviceId)
+            .OrderByDescending(rc => rc.DetectedTime)
+            .FirstOrDefaultAsync();
+
+        var rootCauses = new List<RootCauseInfo>();
+        var affectedDevices = new List<AffectedDeviceInfo>();
+
+        if (rootCause != null)
+        {
+            var alarm = await _context.Alarms
+                .FirstOrDefaultAsync(a => a.AlarmId == rootCause.AlarmId);
+
+            rootCauses.Add(new RootCauseInfo
+            {
+                RootCauseId = rootCause.RootCauseId,
+                RootCauseDeviceId = rootCause.RootCauseDeviceId,
+                RootCauseType = rootCause.RootCauseType,
+                DetectedTime = rootCause.DetectedTime,
+                AlarmType = alarm?.AlarmType ?? "UNKNOWN",
+                RootDevice = new DeviceInfo
+                {
+                    DeviceId = device.DeviceId,
+                    DeviceName = device.DeviceName,
+                    DeviceType = device.DeviceType.ToString(),
+                    Status = device.Status.ToString(),
+                    IP = device.IP,
+                    Latitude = (double?)device.Latitude,
+                    Longitude = (double?)device.Longitude,
+                    LEA = device.LEA?.Name,
+                    Province = device.LEA?.Province?.Name,
+                    Region = device.LEA?.Province?.Region?.Name
+                }
+            });
+
+            // Get affected devices
+            var impactedRows = await (
+                from impacted in _context.ImpactedDevices.AsNoTracking()
+                join d in _context.Devices.AsNoTracking() on impacted.DeviceId equals d.DeviceId
+                join lea in _context.LEAs.AsNoTracking() on d.LEAId equals lea.LEAId into leaJoin
+                from lea in leaJoin.DefaultIfEmpty()
+                join province in _context.Provinces.AsNoTracking() on lea.ProvinceId equals province.ProvinceId into provinceJoin
+                from province in provinceJoin.DefaultIfEmpty()
+                join region in _context.Regions.AsNoTracking() on province.RegionId equals region.RegionId into regionJoin
+                from region in regionJoin.DefaultIfEmpty()
+                where impacted.RootCauseId == rootCause.RootCauseId
+                select new AffectedDeviceInfo
+                {
+                    DeviceId = d.DeviceId,
+                    DeviceName = d.DeviceName,
+                    DeviceType = d.DeviceType.ToString(),
+                    Status = d.Status.ToString(),
+                    IP = d.IP,
+                    Latitude = (double?)d.Latitude,
+                    Longitude = (double?)d.Longitude,
+                    LEA = lea != null ? lea.Name : "",
+                    Province = province != null ? province.Name : "",
+                    Region = region != null ? region.Name : "",
+                    ImpactType = impacted.ImpactType
+                })
+                .ToListAsync();
+
+            affectedDevices.AddRange(impactedRows);
+        }
+
+        return new ImpactAnalysisResult
+        {
+            AnalyzedDevice = new DeviceInfo
+            {
+                DeviceId = device.DeviceId,
+                DeviceName = device.DeviceName,
+                DeviceType = device.DeviceType.ToString(),
+                Status = device.Status.ToString(),
+                IP = device.IP,
+                Latitude = (double?)device.Latitude,
+                Longitude = (double?)device.Longitude,
+                LEA = device.LEA?.Name,
+                Province = device.LEA?.Province?.Name,
+                Region = device.LEA?.Province?.Region?.Name
+            },
+            RootCauses = rootCauses,
+            AffectedDevices = affectedDevices,
+            AnalysisTimestamp = DateTime.UtcNow
+        };
     }
 }

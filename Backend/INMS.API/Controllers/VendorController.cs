@@ -54,7 +54,13 @@ namespace INMS.API.Controllers
         public async Task<IActionResult> Create([FromBody] CreateVendorDto dto)
         {
             if (!ModelState.IsValid)
+            {
+                var errors = ModelState
+                    .Where(e => e.Value?.Errors.Count > 0)
+                    .ToDictionary(e => e.Key, e => e.Value!.Errors.Select(x => x.ErrorMessage));
+                Console.WriteLine("[VendorController] POST ModelState errors: " + System.Text.Json.JsonSerializer.Serialize(errors));
                 return BadRequest(ModelState);
+            }
                 
             try
             {
@@ -72,7 +78,13 @@ namespace INMS.API.Controllers
         public async Task<IActionResult> Update(int id, [FromBody] UpdateVendorDto dto)
         {
             if (!ModelState.IsValid)
+            {
+                var errors = ModelState
+                    .Where(e => e.Value?.Errors.Count > 0)
+                    .ToDictionary(e => e.Key, e => e.Value!.Errors.Select(x => x.ErrorMessage));
+                Console.WriteLine("[VendorController] PUT ModelState errors: " + System.Text.Json.JsonSerializer.Serialize(errors));
                 return BadRequest(ModelState);
+            }
                 
             try
             {

@@ -56,7 +56,7 @@ CREATE TABLE Device (
     DeviceName NVARCHAR(150) NOT NULL,
     DeviceType NVARCHAR(50) NOT NULL,  -- SLBN | CEAN | MSAN | CUSTOMER
     IP NVARCHAR(50),
-    Status NVARCHAR(20) NOT NULL DEFAULT 'UP', -- UP | DOWN | UNREACHABLE
+    Status NVARCHAR(20) NOT NULL DEFAULT 'UP', -- UP | DOWN | IMPACTED
     PriorityLevel NVARCHAR(20) NOT NULL DEFAULT 'LOW', -- LOW | AVERAGE | HIGH | CRITICAL
     LEAId INT NOT NULL,
     AssignedUserId INT NULL,
@@ -67,10 +67,6 @@ CREATE TABLE Device (
     CONSTRAINT FK_Device_User
         FOREIGN KEY (AssignedUserId) REFERENCES [User](UserId)
 );
-
-ALTER TABLE Device
-ADD Latitude DECIMAL(9,6) NULL,
-    Longitude DECIMAL(9,6) NULL;
 
 /* TOPOLOGY LINKS --------------------------------------------------------------------- */
 CREATE TABLE DeviceLink (
@@ -167,10 +163,6 @@ ALTER TABLE Region ADD Description NVARCHAR(255) NULL;
 -- Rename Role column
 EXEC sp_rename 'Role.RoleName', 'Name', 'COLUMN';
 
--- Add ServiceId and Email columns to User table
-ALTER TABLE [User] ADD ServiceId NVARCHAR(50) NULL;
-ALTER TABLE [User] ADD Email NVARCHAR(150) NULL;
-
 /*------------------------------------------------*/
 USE INMS_SLT;
 
@@ -190,7 +182,7 @@ INSERT INTO Province (Name, RegionId) VALUES
 ('Galle', 3),
 ('Matara', 3);
 
--- LEAs
+-- LEAs ----
 INSERT INTO LEA (Name, ProvinceId) VALUES 
 ('Colombo Central', 1),
 ('Colombo North', 1),
@@ -242,29 +234,19 @@ SELECT * FROM LEA;
 SELECT * FROM Device;
 SELECT * FROM DeviceLink;
 
+
+Select * From UserAreaAssignment;
+select * From Device;
+
+SELECT* from Role;
+SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Role';
+
+
+-------------------------------- Updating --------------------------------------------
 ALTER TABLE Device
-ADD Latitude DECIMAL(9,6) NULL,
-    Longitude DECIMAL(9,6) NULL;
-
-UPDATE Device
-SET Latitude = 0.0 
-WHERE Latitude IS NULL;
-
-UPDATE Device
-SET Longitude = 0.0 
-WHERE Longitude IS NULL;
-
--- Then alter the columns to NOT NULL
-ALTER TABLE Device
-ALTER COLUMN Latitude DECIMAL(9,6) NOT NULL;
-
-ALTER TABLE Device
-ALTER COLUMN Longitude DECIMAL(9,6) NOT NULL;
-
-ALTER TABLE Device ADD IsSimulatedDown BIT NOT NULL DEFAULT 0;
+ADD Latitude DECIMAL(9,6) NULL, Longitude DECIMAL(9,6) NULL;
 
 
--- Sample Data ------------------------------------
 -- SLBN - Colombo
 UPDATE Device SET Latitude = 6.9271, Longitude = 79.8612 WHERE DeviceId = 1;
 
@@ -290,24 +272,25 @@ UPDATE Device SET Latitude = 6.9260, Longitude = 79.8595 WHERE DeviceId = 7;
 UPDATE Device SET Latitude = 7.0925, Longitude = 79.9975 WHERE DeviceId = 8;
 
 
+
 ---- || TEST SCENARIO FOR MAP || ----
 
--- Reset
+-- 🔁 Reset
 DELETE FROM ImpactedDevice;
 DELETE FROM RootCause;
 DELETE FROM Alarm;
 
 UPDATE Device
-SET Status = 'UP';
+SET Status = 'UP' WHERE DeviceName = 'SLBN-Colombo-01';
 
 
--- Step 1: Root failure
+-- 🔴 Step 1: Root failure
 UPDATE Device
 SET Status = 'DOWN'
 WHERE DeviceName = 'SLBN-Colombo-01';
 
 
--- Step 2: Insert Alarm (FIXED)
+-- 🚨 Step 2: Insert Alarm (FIXED)
 INSERT INTO Alarm (DeviceId, AlarmType)
 VALUES (
     (SELECT DeviceId FROM Device WHERE DeviceName = 'SLBN-Colombo-01'),
@@ -315,7 +298,7 @@ VALUES (
 );
 
 
--- Step 3: Insert RootCause (NOW AlarmId will exist)
+-- 🧠 Step 3: Insert RootCause (NOW AlarmId will exist)
 INSERT INTO RootCause (AlarmId, RootCauseDeviceId, RootCauseType, DetectedTime)
 VALUES (
     (SELECT TOP 1 AlarmId FROM Alarm ORDER BY AlarmId DESC),
@@ -325,7 +308,7 @@ VALUES (
 );
 
 
--- Step 4: Insert Impacted Devices
+-- 🟡 Step 4: Insert Impacted Devices
 INSERT INTO ImpactedDevice (DeviceId, RootCauseId, ImpactType)
 SELECT DeviceId,
        (SELECT TOP 1 RootCauseId FROM RootCause ORDER BY RootCauseId DESC),
@@ -338,11 +321,36 @@ WHERE DeviceName IN (
     'MSAN-Colombo-A2'
 );
 
--- Add ServiceId and Email columns to User table
-ALTER TABLE [User] ADD ServiceId NVARCHAR(50) NULL;
-ALTER TABLE [User] ADD Email NVARCHAR(150) NULL;
+ALTER TABLE Device ADD IsSimulatedDown BIT NOT NULL DEFAULT 0;
 
-/* ACCOUNT REQUESTS ------------------------------------------------------------------ */
+---------------------- alarm id on eventsimulation ------------------
+  -- Add the AlarmId column to SimulationEvent table
+ALTER TABLE SimulationEvent 
+ADD AlarmId INT NULL;
+
+-- Add foreign key constraint linking to Alarm table
+ALTER TABLE SimulationEvent 
+ADD CONSTRAINT FK_SimulationEvent_Alarm 
+FOREIGN KEY (AlarmId) REFERENCES Alarm(AlarmId);
+
+-- Optional: Create an index for performance on AlarmId lookups
+CREATE INDEX IX_SimulationEvent_AlarmId ON SimulationEvent(AlarmId);
+
+-------------------- NEW 31.03.2026 -------------------------
+
+select * from ImpactedDevice
+select * from RootCause
+select * from SimulationEvent
+select * from Alarm
+select * from Heartbeat
+select * from Device
+select * from devicelink
+
+UPDATE Device 
+SET IsSimulatedDown = 1 
+WHERE DeviceId = 5;
+
+--------------------  NEW ACC REQ -----------------------------
 CREATE TABLE AccountRequest (
     RequestId    INT IDENTITY(1,1) PRIMARY KEY,
     FullName     NVARCHAR(150)  NOT NULL,
@@ -361,46 +369,7 @@ CREATE TABLE AccountRequest (
     CONSTRAINT FK_AccountRequest_LEA      FOREIGN KEY (LEAId)      REFERENCES LEA(LEAId)
 );
 
-/* 1. Add Geographical Columns to the User Table */
-ALTER TABLE [User] 
-ADD RegionId INT NULL,
-    ProvinceId INT NULL,
-    LEAId INT NULL;
-
-/* 2. Establish Foreign Key Constraints */
--- Links User to the Region table
-ALTER TABLE [User]
-ADD CONSTRAINT FK_User_Region
-FOREIGN KEY (RegionId) REFERENCES Region(RegionId);
-
--- Links User to the Province table
-ALTER TABLE [User]
-ADD CONSTRAINT FK_User_Province
-FOREIGN KEY (ProvinceId) REFERENCES Province(ProvinceId);
-
--- Links User to the LEA table
-ALTER TABLE [User]
-ADD CONSTRAINT FK_User_LEA
-FOREIGN KEY (LEAId) REFERENCES LEA(LEAId);
-
-/* 3. Verify the changes */
-SELECT COLUMN_NAME, DATA_TYPE 
-FROM INFORMATION_SCHEMA.COLUMNS 
-WHERE TABLE_NAME = 'User';
-/*Add Alarm Id To Simulate Event --------------------------------------------- */
-ALTER TABLE SimulationEvent
-ADD AlarmId INT NULL;
-
-/* CLEANUP: Remove FirstName/LastName if they were added accidentally in previous runs */
-IF COL_LENGTH('User', 'FirstName') IS NOT NULL ALTER TABLE [User] DROP COLUMN FirstName;
-IF COL_LENGTH('User', 'LastName') IS NOT NULL ALTER TABLE [User] DROP COLUMN LastName;
-IF COL_LENGTH('User', 'ServiceNumber') IS NOT NULL ALTER TABLE [User] DROP COLUMN ServiceNumber;
-
-IF COL_LENGTH('AccountRequest', 'FirstName') IS NOT NULL ALTER TABLE AccountRequest DROP COLUMN FirstName;
-IF COL_LENGTH('AccountRequest', 'LastName') IS NOT NULL ALTER TABLE AccountRequest DROP COLUMN LastName;
-IF COL_LENGTH('AccountRequest', 'ServiceNumber') IS NOT NULL ALTER TABLE AccountRequest DROP COLUMN ServiceNumber;
-
---------- vendor initialization ----------------------------
+--------- vendor initialization ---------
 -- Create Vendor table
 CREATE TABLE Vendor (
     VendorId INT IDENTITY(1,1) PRIMARY KEY,
@@ -448,3 +417,97 @@ INSERT INTO Vendor (Name, Brand, DeviceType, Description, IsActive, CreatedAt) V
 SELECT * FROM Vendor;
 select * from Device;
 SELECT DeviceId, DeviceName, DeviceType, VendorId FROM Device;
+
+SELECT * FROM Vendor WHERE DeviceType = 0;      ---------------
+
+----------------------   MULTIPLE VENDORS FOR A SINGLE DEVICE -------------------------------
+-- Check what constraints actually exist on Device table
+SELECT 
+    CONSTRAINT_NAME,
+    CONSTRAINT_TYPE
+FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS 
+WHERE TABLE_NAME = 'Device';
+
+-- Check foreign key constraints specifically
+SELECT 
+    fk.name AS FK_Name,
+    tp.name AS Parent_Table,
+    cp.name AS Parent_Column,
+    tr.name AS Referenced_Table,
+    cr.name AS Referenced_Column
+FROM sys.foreign_keys fk
+INNER JOIN sys.tables tp ON fk.parent_object_id = tp.object_id
+INNER JOIN sys.tables tr ON fk.referenced_object_id = tr.object_id
+INNER JOIN sys.foreign_key_columns fkc ON fk.object_id = fkc.constraint_object_id
+INNER JOIN sys.columns cp ON fkc.parent_column_id = cp.column_id AND fkc.parent_object_id = cp.object_id
+INNER JOIN sys.columns cr ON fkc.referenced_column_id = cr.column_id AND fkc.referenced_object_id = cr.object_id
+WHERE tp.name = 'Device';
+
+
+----------------------   MULTIPLE VENDORS FOR A SINGLE DEVICE -------------------------------
+
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'DeviceVendor')
+BEGIN
+    CREATE TABLE DeviceVendor (
+        DeviceVendorId INT IDENTITY(1,1) PRIMARY KEY,
+        DeviceId INT NOT NULL,
+        VendorId INT NOT NULL,
+        AssignedDate DATETIME2 NOT NULL DEFAULT GETDATE(),
+        IsActive BIT NOT NULL DEFAULT 1,
+        AssignedBy NVARCHAR(100),
+        Notes NVARCHAR(500),
+        
+        CONSTRAINT FK_DeviceVendor_Device 
+            FOREIGN KEY (DeviceId) 
+            REFERENCES Device(DeviceId) 
+            ON DELETE CASCADE,
+
+        CONSTRAINT FK_DeviceVendor_Vendor 
+            FOREIGN KEY (VendorId) 
+            REFERENCES Vendor(VendorId) 
+            ON DELETE CASCADE,
+
+        CONSTRAINT UQ_DeviceVendor_Active 
+            UNIQUE (DeviceId, VendorId, IsActive)
+    );
+
+END
+    
+    CREATE INDEX IX_DeviceVendor_DeviceId ON DeviceVendor(DeviceId);
+    CREATE INDEX IX_DeviceVendor_VendorId ON DeviceVendor(VendorId);
+    CREATE INDEX IX_DeviceVendor_IsActive ON DeviceVendor(IsActive);
+    
+-- Step 2: Drop index and VendorId column from Device table
+IF EXISTS (SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID('Device') AND name = 'IX_Device_VendorId')
+BEGIN
+    DROP INDEX IX_Device_VendorId ON Device;
+    PRINT 'IX_Device_VendorId index dropped';
+END
+
+IF EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Device') AND name = 'VendorId')
+BEGIN
+    ALTER TABLE Device DROP COLUMN VendorId;
+END
+
+-- Step 3: Add constraint to ensure DeviceType compatibility
+CREATE TRIGGER TR_DeviceVendor_DeviceType_Validation
+ON DeviceVendor
+AFTER INSERT, UPDATE
+AS
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM inserted dv
+        JOIN Device d ON dv.DeviceId = d.DeviceId
+        JOIN Vendor v ON dv.VendorId = v.VendorId
+        WHERE d.DeviceType <> v.DeviceType
+    )
+    BEGIN
+        RAISERROR ('DeviceType mismatch between Device and Vendor', 16, 1);
+        ROLLBACK TRANSACTION;
+    END
+END;
+
+
+---------  CREATE INDEX FOR FAST LOADING ----------------
+CREATE INDEX IX_Heartbeat_DeviceId_Timestamp ON Heartbeat(DeviceId, Timestamp DESC);

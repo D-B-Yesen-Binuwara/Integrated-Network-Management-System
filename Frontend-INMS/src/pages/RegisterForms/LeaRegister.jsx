@@ -220,7 +220,7 @@ function LeaRegister({ onBack }) {
 
             <button
               type="submit"
-              className="w-full py-3 px-4 bg-gradient-to-r from-sky-600 to-emerald-500 text-white font-semibold rounded-lg shadow-md hover:from-sky-700 hover:to-emerald-600 focus:outline-none focus:ring-2 focus:ring-sky-400 focus:ring-offset-2 transition-all duration-200"
+              className="w-full py-3 px-4 bg-gradient-to-r from-slate-800 via-sky-800 to-slate-700 text-white font-semibold rounded-lg shadow-md hover:from-slate-900 hover:via-sky-900 hover:to-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-400 focus:ring-offset-2 transition-all duration-200"
             >
               Register
             </button>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import VendorTable from '../../components/vendors/VendorTable';
-// import VendorService from '../../services/VendorService';
+import VendorService from '../../services/VendorService';
 import VendorFormModal from './VendorFormModal';
 
 function readFirst(source, keys, fallback = null) {
@@ -13,38 +13,16 @@ function readFirst(source, keys, fallback = null) {
   return fallback;
 }
 
-function normalizeNodeType(type) {
-  const normalized = String(type ?? '').trim().toUpperCase();
-  if (normalized === 'CEAN') {
-    return 'CEA';
-  }
-  return normalized;
-}
-
-function normalizeSupportedNodeTypes(value) {
-  if (Array.isArray(value)) {
-    return value.map((item) => normalizeNodeType(item)).filter(Boolean);
-  }
-
-  if (typeof value === 'string') {
-    return value
-      .split(',')
-      .map((item) => normalizeNodeType(item.trim()))
-      .filter(Boolean);
-  }
-
-  return [];
-}
-
 function normalizeVendor(rawVendor) {
   return {
-    id: String(readFirst(rawVendor, ['id', 'vendorId', 'vendorID'], '')),
+    id: String(readFirst(rawVendor, ['vendorId', 'id', 'vendorID'], '')),
     name: String(readFirst(rawVendor, ['name', 'vendorName'], 'Unknown Vendor')),
-    supportedNodeTypes: normalizeSupportedNodeTypes(readFirst(rawVendor, ['supportedNodeTypes', 'supportedTypes', 'supportedNodes'], [])),
+    brand: String(readFirst(rawVendor, ['brand'], '')),
+    deviceType: String(readFirst(rawVendor, ['deviceType'], '')),
     description: String(readFirst(rawVendor, ['description', 'details'], '')),
-    assignedNodeCount: Number(readFirst(rawVendor, ['assignedNodeCount', 'nodeCount', 'assignedNodes'], 0)) || 0,
-    createdAt: readFirst(rawVendor, ['createdAt'], undefined),
-    updatedAt: readFirst(rawVendor, ['updatedAt'], undefined)
+    assignedNodeCount: Number(readFirst(rawVendor, ['deviceCount', 'assignedNodeCount', 'nodeCount'], 0)) || 0,
+    isActive: readFirst(rawVendor, ['isActive'], true),
+    createdAt: readFirst(rawVendor, ['createdAt'], undefined)
   };
 }
 
@@ -67,12 +45,9 @@ export default function VendorsPage() {
     setError('');
 
     try {
-      // const data = await VendorService.getAll();
-      // const list = (Array.isArray(data) ? data : []).map(normalizeVendor).filter((vendor) => vendor.id);
-      // setVendors(list);
-      
-      // Temporary mock
-      setVendors([]);
+      const data = await VendorService.getAll();
+      const list = (Array.isArray(data) ? data : []).map(normalizeVendor).filter((vendor) => vendor.id);
+      setVendors(list);
     } catch (requestError) {
       const errorText = requestError?.response?.data?.message || requestError?.message || 'Failed to load vendors.';
       setError(errorText);
@@ -105,14 +80,13 @@ export default function VendorsPage() {
     setError('');
 
     try {
-      // if (modalState.mode === 'add') {
-      //   await VendorService.create(payload);
-      //   setMessage('Vendor created successfully.');
-      // } else if (modalState.vendor?.id) {
-      //   await VendorService.update(modalState.vendor.id, payload);
-      //   setMessage('Vendor updated successfully.');
-      // }
-      setMessage('Mock: Vendor request processed.');
+      if (modalState.mode === 'add') {
+        await VendorService.create(payload);
+        setMessage('Vendor created successfully.');
+      } else if (modalState.vendor?.id) {
+        await VendorService.update(modalState.vendor.id, { ...payload, isActive: modalState.vendor.isActive ?? true });
+        setMessage('Vendor updated successfully.');
+      }
 
       closeModal();
       await loadVendors();
@@ -139,8 +113,8 @@ export default function VendorsPage() {
     setError('');
 
     try {
-      // await VendorService.delete(vendor.id);
-      setMessage('Mock: Vendor deleted successfully.');
+      await VendorService.delete(vendor.id);
+      setMessage('Vendor deleted successfully.');
       await loadVendors();
     } catch (apiError) {
       const errorText = apiError?.response?.data?.message || apiError?.message || 'Failed to delete vendor.';

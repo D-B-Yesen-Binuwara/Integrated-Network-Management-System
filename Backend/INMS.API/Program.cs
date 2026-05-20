@@ -21,7 +21,13 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"), sqlOptions =>
+    {
+        sqlOptions.CommandTimeout(60); // 60 seconds timeout
+        sqlOptions.EnableRetryOnFailure(3, TimeSpan.FromSeconds(5), null);
+    })
+    .EnableSensitiveDataLogging(builder.Environment.IsDevelopment())
+    .EnableDetailedErrors(builder.Environment.IsDevelopment()));
 
 builder.Services.AddScoped<IDeviceRepository, DeviceRepository>();
 builder.Services.AddScoped<IDeviceService, DeviceService>();
@@ -53,15 +59,38 @@ builder.Services.AddScoped<IHeartbeatService, HeartbeatService>();
 builder.Services.AddScoped<ISimulationEventRepository, SimulationEventRepository>();
 builder.Services.AddScoped<ISimulationEventService, SimulationEventService>();
 
+// DeviceVendor Services
+builder.Services.AddScoped<IDeviceVendorRepository, DeviceVendorRepository>();
+builder.Services.AddScoped<IDeviceVendorService, DeviceVendorService>();
+
 // Vendor Services
 builder.Services.AddScoped<IVendorRepository, VendorRepository>();
 builder.Services.AddScoped<IVendorService, VendorService>();
+
+// Vendor Statistics Services
+builder.Services.AddScoped<IVendorStatsService, VendorStatsService>();
 
 // Background Services
 builder.Services.AddHostedService<HeartbeatSchedulerService>();
 builder.Services.AddHostedService<HeartbeatFailureDetectionService>();
 
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        // Serialize enums as strings instead of numbers
+        options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+    });
+
+// Add CORS
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontend", policy =>
+    {
+        policy.WithOrigins("http://localhost:5173")
+              .AllowAnyHeader()
+              .AllowAnyMethod();
+    });
+});
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -79,6 +108,7 @@ using (var scope = app.Services.CreateScope())
 app.UseSwagger();
 app.UseSwaggerUI();
 
+app.UseCors("AllowFrontend");
 app.UseHttpsRedirection();
 app.MapControllers();
 

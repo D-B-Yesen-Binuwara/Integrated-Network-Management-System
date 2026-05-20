@@ -10,6 +10,7 @@ public class AppDbContext : DbContext
 
     public DbSet<Device> Devices { get; set; }
     public DbSet<DeviceLink> DeviceLinks { get; set; }
+    public DbSet<DeviceVendor> DeviceVendors { get; set; }
     public DbSet<Region> Regions { get; set; }
     public DbSet<Province> Provinces { get; set; }
     public DbSet<LEA> LEAs { get; set; }
@@ -27,6 +28,7 @@ public class AppDbContext : DbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Device>().ToTable("Device");
+        modelBuilder.Entity<DeviceVendor>().ToTable("DeviceVendor");
         modelBuilder.Entity<Region>().ToTable("Region");
         modelBuilder.Entity<Province>().ToTable("Province");
         modelBuilder.Entity<LEA>().ToTable("LEA");
@@ -84,18 +86,23 @@ public class AppDbContext : DbContext
             .Property(v => v.DeviceType)
             .HasConversion<string>();
 
-        // Device-Vendor relationship with DeviceType constraint
-        modelBuilder.Entity<Device>()
-            .HasOne(d => d.Vendor)
-            .WithMany(v => v.Devices)
-            .HasForeignKey(d => d.VendorId)
-            .OnDelete(DeleteBehavior.SetNull);
+        // DeviceVendor relationships
+        modelBuilder.Entity<DeviceVendor>()
+            .HasOne(dv => dv.Device)
+            .WithMany(d => d.DeviceVendors)
+            .HasForeignKey(dv => dv.DeviceId)
+            .OnDelete(DeleteBehavior.Cascade);
 
-        // Add check constraint to ensure Device.DeviceType matches Vendor.DeviceType
-        modelBuilder.Entity<Device>()
-            .ToTable(t => t.HasCheckConstraint(
-                "CK_Device_Vendor_DeviceType_Match",
-                "VendorId IS NULL OR NOT EXISTS (SELECT 1 FROM Vendor v WHERE v.VendorId = Device.VendorId AND v.DeviceType != Device.DeviceType)"
-            ));
+        modelBuilder.Entity<DeviceVendor>()
+            .HasOne(dv => dv.Vendor)
+            .WithMany(v => v.DeviceVendors)
+            .HasForeignKey(dv => dv.VendorId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<DeviceVendor>()
+            .HasOne(dv => dv.AssignedByUser)
+            .WithMany()
+            .HasForeignKey(dv => dv.AssignedBy)
+            .OnDelete(DeleteBehavior.SetNull);
     }
 }
