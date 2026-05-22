@@ -17,13 +17,13 @@ public class VendorService : IVendorService
 
     public async Task<IEnumerable<VendorDto>> GetAllAsync()
     {
-        var vendors = await _vendorRepository.GetAllWithDevicesAsync();
+        var vendors = await _vendorRepository.GetAllAsync();
         return vendors.Select(MapToDto);
     }
 
     public async Task<VendorDto?> GetByIdAsync(int id)
     {
-        var vendor = await _vendorRepository.GetByIdWithDevicesAsync(id);
+        var vendor = await _vendorRepository.GetByIdAsync(id);
         return vendor != null ? MapToDto(vendor) : null;
     }
 
@@ -100,8 +100,7 @@ public class VendorService : IVendorService
             vendor.DeviceType,
             vendor.Description,
             vendor.IsActive,
-            vendor.CreatedAt,
-            vendor.Devices?.Count ?? 0
+            vendor.CreatedAt
         );
     }
 }

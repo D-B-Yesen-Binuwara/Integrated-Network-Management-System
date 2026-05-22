@@ -1,17 +1,27 @@
 import { useState } from "react";
 import { useNavigate } from 'react-router-dom';
 
-function AdminRegister() {
+function AdminRegister({ onBack }) {
   const navigate = useNavigate();
-  const [name, setName] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [serviceId, setServiceId] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
   const handleRegister = (e) => {
     e.preventDefault();
 
+    if (password !== confirmPassword) {
+      alert("Passwords do not match!");
+      return;
+    }
+
     const user = {
-      name,
+      fullName,
+      lastName,
+      serviceId,
       email,
       password,
       role: "Admin",
@@ -39,9 +49,37 @@ function AdminRegister() {
               </label>
               <input
                 type="text"
-                placeholder="Enter your full name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
+                placeholder="Enter your Full Name"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                required
+                className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-200 outline-none transition-all duration-200 text-slate-700 placeholder-slate-400"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-600 mb-2">
+                Last Name
+              </label>
+              <input
+                type="text"
+                placeholder="Enter your last name"
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                required
+                className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-200 outline-none transition-all duration-200 text-slate-700 placeholder-slate-400"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-600 mb-2">
+                Service ID
+              </label>
+              <input
+                type="text"
+                placeholder="Enter your Service ID"
+                value={serviceId}
+                onChange={(e) => setServiceId(e.target.value)}
                 required
                 className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-200 outline-none transition-all duration-200 text-slate-700 placeholder-slate-400"
               />
@@ -75,9 +113,23 @@ function AdminRegister() {
               />
             </div>
 
+            <div>
+              <label className="block text-sm font-medium text-slate-600 mb-2">
+                Confirm Password
+              </label>
+              <input
+                type="password"
+                placeholder="Confirm your password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+                className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-200 outline-none transition-all duration-200 text-slate-700 placeholder-slate-400"
+              />
+            </div>
+
             <button
               type="submit"
-              className="w-full py-3 px-4 bg-gradient-to-r from-sky-600 to-emerald-500 text-white font-semibold rounded-lg shadow-md hover:from-sky-700 hover:to-emerald-600 focus:outline-none focus:ring-2 focus:ring-sky-400 focus:ring-offset-2 transition-all duration-200"
+              className="w-full py-3 px-4 bg-gradient-to-r from-slate-800 via-sky-800 to-slate-700 text-white font-semibold rounded-lg shadow-md hover:from-slate-900 hover:via-sky-900 hover:to-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-400 focus:ring-offset-2 transition-all duration-200"
             >
               Register
             </button>
@@ -86,8 +138,9 @@ function AdminRegister() {
           {/* Back Button */}
           <div className="mt-6 pt-6 border-t border-slate-200">
             <button
-              onClick={() => navigate("/register")}
+              onClick={onBack}
               className="w-full py-3 px-4 border border-slate-300 text-slate-600 font-medium rounded-lg hover:bg-slate-50 hover:border-slate-400 transition-all duration-200 flex items-center justify-center gap-2"
+              type="button"
             >
               <svg
                 className="w-4 h-4"

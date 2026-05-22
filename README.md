@@ -104,3 +104,16 @@ npm start
 
 Use feature branches like `YB/DTO/F2` to keep work isolated. Merge only after code review and tests pass.
 
+
+## xunit testing initialization
+
+dotnet new xunit
+
+dotnet add package xunit
+dotnet add package xunit.runner.visualstudio
+dotnet add package Microsoft.NET.Test.Sdk
+dotnet add package Moq
+dotnet add package FluentAssertions
+
+dotnet add reference ../../INMS.Application/INMS.Application.csproj
+dotnet add reference ../../INMS.Domain/INMS.Domain.csproj

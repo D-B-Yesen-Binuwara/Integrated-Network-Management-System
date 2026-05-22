@@ -36,6 +36,8 @@ Understand.txt
 HEARTBEAT_MONITORING_SYSTEM_CORRECTIONS.txt
 DEVICE_TOPOLOGY_IMPLEMENTATION.txt
 
+impactanalysis-fix.md
+
 .fake
 
 bin/

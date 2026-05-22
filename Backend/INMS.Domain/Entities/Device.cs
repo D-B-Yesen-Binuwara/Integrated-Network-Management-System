@@ -37,13 +37,19 @@ namespace INMS.Domain.Entities
         [ForeignKey("LEA")]
         public int LEAId { get; set; }
 
-        [ForeignKey("Vendor")]
-        public int? VendorId { get; set; }
-        public Vendor? Vendor { get; set; }
+        // Navigation property to LEA
+        public LEA? LEA { get; set; }
+
+        // Remove direct vendor relationship - now many-to-many
+        // public int? VendorId { get; set; }
+        // public Vendor? Vendor { get; set; }
 
         public int? AssignedUserId { get; set; }
         public User? AssignedUser { get; set; }
 
         public bool IsSimulatedDown { get; set; } = false;
+
+        // Many-to-many relationship with vendors
+        public ICollection<DeviceVendor> DeviceVendors { get; set; } = new List<DeviceVendor>();
     }
 }

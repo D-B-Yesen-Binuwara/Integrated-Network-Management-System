@@ -14,17 +14,20 @@ namespace INMS.Application.Services
         private readonly IDeviceRepository _deviceRepository;
         private readonly IUserAreaAssignmentRepository _assignmentRepository;
         private readonly ISimulationEventService _simulationEventService;
+        private readonly IImpactAnalysisService _impactAnalysisService;
 
         public DeviceService(
             AppDbContext context,
             IDeviceRepository deviceRepository,
             IUserAreaAssignmentRepository assignmentRepository,
-            ISimulationEventService simulationEventService)
+            ISimulationEventService simulationEventService,
+            IImpactAnalysisService impactAnalysisService)
         {
             _context = context;
             _deviceRepository = deviceRepository;
             _assignmentRepository = assignmentRepository;
             _simulationEventService = simulationEventService;
+            _impactAnalysisService = impactAnalysisService;
         }
 
         public async Task<IEnumerable<Device>> GetAllAsync()
@@ -179,7 +182,6 @@ namespace INMS.Application.Services
             var existing = await _deviceRepository.GetByIdAsync(id);
             if (existing == null) return null;
 
-
             existing.DeviceName = dto.DeviceName;
             existing.DeviceType = dto.DeviceType;
             existing.IP = dto.IP ?? string.Empty;
@@ -191,261 +193,7 @@ namespace INMS.Application.Services
 
             await _deviceRepository.UpdateAsync(existing);
 
-
             return existing;
-        }
-
-        public async Task PropagateImpact(int rootDeviceId)
-        {
-            var allLinks = await _context.DeviceLinks
-                .AsNoTracking()
-                .ToListAsync();
-
-            var impactedDeviceIds = GetDownstreamDeviceIds(rootDeviceId, allLinks);
-            var rootCauseId = await EnsureRootCauseAsync(rootDeviceId);
-
-            // Rebuild the impacted rows for this root device to keep records current.
-            // var existingRows = await _context.ImpactedDevices
-            //     .Where(x => x.RootCauseId == rootCauseId)
-            //     .ToListAsync();
-            //
-            // if (existingRows.Count > 0)
-            // {
-            //     _context.ImpactedDevices.RemoveRange(existingRows);
-            // }
-            //
-            // if (impactedDeviceIds.Count == 0)
-            // {
-            //     await _context.SaveChangesAsync();
-            //     return;
-            // }
-            //
-            // var impactedRows = impactedDeviceIds
-            //     .Select(deviceId => new ImpactedDevice
-            //     {
-            //         RootCauseId = rootCauseId,
-            //         DeviceId = deviceId,
-            //         ImpactType = "DOWNSTREAM"
-            //     })
-            //     .ToList();
-            //
-            // await _context.ImpactedDevices.AddRangeAsync(impactedRows);
-            // await _context.SaveChangesAsync();
-        }
-
-        private async Task<int> EnsureRootCauseAsync(int rootDeviceId)
-        {
-            var activeAlarm = await _context.Alarms
-                .Where(a => a.DeviceId == rootDeviceId && a.IsActive && a.AlarmType == "NODE_DOWN")
-                .OrderByDescending(a => a.RaisedTime)
-                .FirstOrDefaultAsync();
-
-            if (activeAlarm == null)
-            {
-                activeAlarm = new Alarm
-                {
-                    DeviceId = rootDeviceId,
-                    AlarmType = "NODE_DOWN",
-                    RaisedTime = DateTime.UtcNow,
-                    IsActive = true
-                };
-
-                await _context.Alarms.AddAsync(activeAlarm);
-                await _context.SaveChangesAsync();
-
-                await _simulationEventService.LogAlarmEventAsync(rootDeviceId, "ALARM_RAISED", activeAlarm.AlarmId, activeAlarm.RaisedTime);
-            }
-
-            var rootCause = await _context.RootCauses
-                .Where(rc => rc.AlarmId == activeAlarm.AlarmId)
-                .OrderByDescending(rc => rc.DetectedTime)
-                .FirstOrDefaultAsync();
-
-            // if (rootCause == null)
-            // {
-            //     rootCause = new RootCause
-            //     {
-            //         AlarmId = activeAlarm.AlarmId,
-            //         RootCauseDeviceId = rootDeviceId,
-            //         RootCauseType = "NODE_FAILURE",
-            //         DetectedTime = DateTime.UtcNow
-            //     };
-            //
-            //     await _context.RootCauses.AddAsync(rootCause);
-            //     await _context.SaveChangesAsync();
-            // }
-
-            return rootCause?.RootCauseId ?? 0;
-        }
-
-        public async Task EnsureUnreachableAlarmAsync(int deviceId)
-        {
-            var activeAlarm = await _context.Alarms
-                .Where(a => a.DeviceId == deviceId && a.IsActive && a.AlarmType == "NODE_UNREACHABLE")
-                .OrderByDescending(a => a.RaisedTime)
-                .FirstOrDefaultAsync();
-
-            if (activeAlarm == null)
-            {
-                activeAlarm = new Alarm
-                {
-                    DeviceId = deviceId,
-                    AlarmType = "NODE_UNREACHABLE",
-                    RaisedTime = DateTime.UtcNow,
-                    IsActive = true
-                };
-
-                await _context.Alarms.AddAsync(activeAlarm);
-                await _context.SaveChangesAsync();
-
-                await _simulationEventService.LogAlarmEventAsync(deviceId, "ALARM_RAISED", activeAlarm.AlarmId, activeAlarm.RaisedTime);
-            }
-
-            // For UNREACHABLE, do NOT create a RootCause here. Instead attempt to
-            // find an existing upstream root cause (a parent that is DOWN) and reuse it.
-
-            var allLinks = await _context.DeviceLinks
-                .AsNoTracking()
-                .ToListAsync();
-
-            // Build parent adjacency: child -> list of parents
-            var parentAdj = new Dictionary<int, List<int>>();
-            foreach (var link in allLinks)
-            {
-                if (!parentAdj.TryGetValue(link.ChildDeviceId, out var parents))
-                {
-                    parents = new List<int>();
-                    parentAdj[link.ChildDeviceId] = parents;
-                }
-
-                parents.Add(link.ParentDeviceId);
-            }
-
-            // BFS upward from this device to find nearest ancestor with an active NODE_DOWN alarm
-            RootCause? foundRootCause = null;
-            var visited = new HashSet<int> { deviceId };
-            var queue = new Queue<int>();
-            queue.Enqueue(deviceId);
-
-            while (queue.Count > 0 && foundRootCause == null)
-            {
-                var current = queue.Dequeue();
-
-                if (!parentAdj.TryGetValue(current, out var parents))
-                {
-                    continue;
-                }
-
-                foreach (var parent in parents)
-                {
-                    if (!visited.Add(parent)) continue;
-
-                    var parentDownAlarm = await _context.Alarms
-                        .Where(a => a.DeviceId == parent && a.IsActive && a.AlarmType == "NODE_DOWN")
-                        .OrderByDescending(a => a.RaisedTime)
-                        .FirstOrDefaultAsync();
-
-                    if (parentDownAlarm != null)
-                    {
-                        foundRootCause = await _context.RootCauses
-                            .Where(rc => rc.AlarmId == parentDownAlarm.AlarmId)
-                            .OrderByDescending(rc => rc.DetectedTime)
-                            .FirstOrDefaultAsync();
-
-                        if (foundRootCause != null)
-                        {
-                            break;
-                        }
-                    }
-
-                    queue.Enqueue(parent);
-                }
-            }
-
-            if (foundRootCause == null)
-            {
-                // No upstream root cause found — nothing to link. Keep the UNREACHABLE alarm only.
-                await _context.SaveChangesAsync();
-                return;
-            }
-
-            var rootCauseId = foundRootCause.RootCauseId;
-
-            // Rebuild impacted rows for this existing root cause so downstream mapping includes unreachable devices
-            // var existingRows = await _context.ImpactedDevices
-            //     .Where(x => x.RootCauseId == rootCauseId)
-            //     .ToListAsync();
-            //
-            // if (existingRows.Count > 0)
-            // {
-            //     _context.ImpactedDevices.RemoveRange(existingRows);
-            // }
-            //
-            // var impactedDeviceIds = GetDownstreamDeviceIds(foundRootCause.RootCauseDeviceId, allLinks);
-            //
-            // if (impactedDeviceIds.Count == 0)
-            // {
-            //     await _context.SaveChangesAsync();
-            //     return;
-            // }
-            //
-            // var impactedRows = impactedDeviceIds
-            //     .Select(did => new ImpactedDevice
-            //     {
-            //         RootCauseId = rootCauseId,
-            //         DeviceId = did,
-            //         ImpactType = "UNREACHABLE_DOWNSTREAM"
-            //     })
-            //     .ToList();
-            //
-            // await _context.ImpactedDevices.AddRangeAsync(impactedRows);
-            // await _context.SaveChangesAsync();
-        }
-
-        private static HashSet<int> GetDownstreamDeviceIds(
-            int rootDeviceId,
-            IEnumerable<DeviceLink> links)
-        {
-            var adjacency = new Dictionary<int, List<int>>();
-
-            foreach (var link in links)
-            {
-                if (!adjacency.TryGetValue(link.ParentDeviceId, out var children))
-                {
-                    children = new List<int>();
-                    adjacency[link.ParentDeviceId] = children;
-                }
-
-                children.Add(link.ChildDeviceId);
-            }
-
-            var visited = new HashSet<int> { rootDeviceId };
-            var impacted = new HashSet<int>();
-            var queue = new Queue<int>();
-            queue.Enqueue(rootDeviceId);
-
-            while (queue.Count > 0)
-            {
-                var current = queue.Dequeue();
-
-                if (!adjacency.TryGetValue(current, out var children))
-                {
-                    continue;
-                }
-
-                foreach (var childId in children)
-                {
-                    if (!visited.Add(childId))
-                    {
-                        continue;
-                    }
-
-                    impacted.Add(childId);
-                    queue.Enqueue(childId);
-                }
-            }
-
-            return impacted;
         }
 
         public async Task<bool> DeleteAsync(int id)
@@ -523,76 +271,17 @@ namespace INMS.Application.Services
             if (device == null) return null;
 
             var previous = device.Status;
-
             device.Status = status;
             await _context.SaveChangesAsync();
 
-            // If device recovered to UP from DOWN or UNREACHABLE, clear related alarms
-            if (previous != status && status == DeviceStatus.UP && (previous == DeviceStatus.DOWN || previous == DeviceStatus.UNREACHABLE))
+            // Clear alarms when device recovers to UP status
+            if (previous != status && status == DeviceStatus.UP && 
+                (previous == DeviceStatus.DOWN || previous == DeviceStatus.UNREACHABLE))
             {
-                await ClearAlarmsAsync(id);
+                await _impactAnalysisService.ClearAlarmsAsync(id);
             }
 
             return device;
-        }
-
-        public async Task ClearAlarmsAsync(int deviceId)
-        {
-            var now = DateTime.UtcNow;
-
-            // Clear active alarms for the device itself
-            var deviceAlarms = await _context.Alarms
-                .Where(a => a.DeviceId == deviceId && a.IsActive)
-                .ToListAsync();
-
-            if (deviceAlarms.Count > 0)
-            {
-                foreach (var a in deviceAlarms)
-                {
-                    a.IsActive = false;
-                    a.ClearedTime = now;
-                }
-
-                await _context.SaveChangesAsync();
-
-                foreach (var a in deviceAlarms)
-                    await _simulationEventService.LogAlarmEventAsync(a.DeviceId, "ALARM_CLEARED", a.AlarmId, a.ClearedTime!.Value);
-            }
-
-            // Find root causes where this device was the failed root and clear impacted downstream alarms
-            var rcIds = await _context.RootCauses
-                .Where(rc => rc.RootCauseDeviceId == deviceId)
-                .Select(rc => rc.RootCauseId)
-                .ToListAsync();
-
-            if (rcIds.Count > 0)
-            {
-                var impactedDeviceIds = await _context.ImpactedDevices
-                    .Where(i => rcIds.Contains(i.RootCauseId))
-                    .Select(i => i.DeviceId)
-                    .Distinct()
-                    .ToListAsync();
-
-                if (impactedDeviceIds.Count > 0)
-                {
-                    var impactedAlarms = await _context.Alarms
-                        .Where(a => impactedDeviceIds.Contains(a.DeviceId) && a.IsActive)
-                        .ToListAsync();
-
-                    foreach (var a in impactedAlarms)
-                    {
-                        a.IsActive = false;
-                        a.ClearedTime = now;
-                    }
-
-                    await _context.SaveChangesAsync();
-
-                    foreach (var a in impactedAlarms)
-                        await _simulationEventService.LogAlarmEventAsync(a.DeviceId, "ALARM_CLEARED", a.AlarmId, a.ClearedTime!.Value);
-                }
-            }
-
-            await _context.SaveChangesAsync();
         }
 
         public async Task<Device?> SetSimulationStateAsync(int id, bool isSimulatedDown)

@@ -27,7 +27,7 @@ namespace INMS.Domain.Entities
 
         public DateTime CreatedAt { get; set; }
 
-        // Navigation properties
-        public ICollection<Device> Devices { get; set; } = new List<Device>();
+        // Many-to-many relationship with devices
+        public ICollection<DeviceVendor> DeviceVendors { get; set; } = new List<DeviceVendor>();
     }
 }

@@ -9,10 +9,10 @@ function Register() {
   const navigate = useNavigate();
   const [role, setRole] = useState("");
 
-  if (role === "admin") return <AdminRegister />;
-  if (role === "region") return <RegionRegister />;
-  if (role === "province") return <ProvinceRegister />;
-  if (role === "lea") return <LeaRegister />;
+  if (role === "admin") return <AdminRegister onBack={() => setRole("")} />;
+  if (role === "region") return <RegionRegister onBack={() => setRole("")} />;
+  if (role === "province") return <ProvinceRegister onBack={() => setRole("")} />;
+  if (role === "lea") return <LeaRegister onBack={() => setRole("")} />;
 
   const roles = [
     { id: "admin", label: "Admin", description: "System Administrator" },

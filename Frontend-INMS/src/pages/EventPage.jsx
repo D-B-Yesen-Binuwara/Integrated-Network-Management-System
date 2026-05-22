@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 
@@ -6,16 +6,48 @@ const EventPage = () => {
     const [search, setSearch] = useState("");
     const [selectedNode, setSelectedNode] = useState("All");
     const [selectedDate, setSelectedDate] = useState(null);
+    const [data, setData] = useState([]);
+    const [loading, setLoading] = useState(true);
 
-    const data = [
-        { time: "13/02/2026, 10:23:03", node: "CEAN-BLR-001", type: "CEAN", event: "ALARM_RAISED", officer: "John Silva", severity: "MAJOR", msg: "AC alarm raised" },
-        { time: "13/02/2026, 10:23:02", node: "CEAN-BLR-001", type: "CEAN", event: "ALARM_RAISED", officer: "John Silva", severity: "MAJOR", msg: "AC power failure" },
-        { time: "13/02/2026, 10:22:56", node: "CEAN-BLR-001", type: "CEAN", event: "NODE_DOWN", officer: "Mary Fernando", severity: "CRITICAL", msg: "Node DOWN" },
-        { time: "13/02/2026, 10:20:10", node: "SLBN-DEL-001", type: "SLBN", event: "NODE_DOWN", officer: "Kamal Perera", severity: "CRITICAL", msg: "Node DOWN" },
-        { time: "13/02/2026, 10:18:20", node: "SLBN-DEL-001", type: "SLBN", event: "NODE_UP", officer: "Kamal Perera", severity: "INFO", msg: "Node UP" },
-        { time: "13/02/2026, 10:15:05", node: "MSAN-BLR-001", type: "MSAN", event: "ALARM_RAISED", officer: "Nimal Silva", severity: "MAJOR", msg: "Temperature alert" },
-        { time: "13/02/2026, 10:14:00", node: "MSAN-BLR-001", type: "MSAN", event: "NODE_UP", officer: "Nimal Silva", severity: "INFO", msg: "Node UP" }
-    ];
+    // Fetch data from database on component mount
+    useEffect(() => {
+        const fetchEvents = async () => {
+            try {
+                const response = await fetch("http://localhost:5000/api/events");
+                if (response.ok) {
+                    const events = await response.json();
+                    setData(events);
+                } else {
+                    // Fallback to sample data if API fails
+                    setData([
+                        { id: 1, time: "13/02/2026, 10:23:03", node: "CEAN-BLR-001", event: "ALARM_RAISED", alarmType: "AC Alarm", officer: "John Silva", severity: "MAJOR" },
+                        { id: 2, time: "13/02/2026, 10:23:02", node: "CEAN-BLR-001", event: "ALARM_RAISED", alarmType: "Power Failure", officer: "John Silva", severity: "MAJOR" },
+                        { id: 3, time: "13/02/2026, 10:22:56", node: "CEAN-BLR-001", event: "NODE_DOWN", alarmType: "Node Offline", officer: "Mary Fernando", severity: "CRITICAL" },
+                        { id: 4, time: "13/02/2026, 10:20:10", node: "SLBN-DEL-001", event: "NODE_DOWN", alarmType: "Node Offline", officer: "Kamal Perera", severity: "CRITICAL" },
+                        { id: 5, time: "13/02/2026, 10:18:20", node: "SLBN-DEL-001", event: "NODE_UP", alarmType: "Node Online", officer: "Kamal Perera", severity: "INFO" },
+                        { id: 6, time: "13/02/2026, 10:15:05", node: "MSAN-BLR-001", event: "ALARM_RAISED", alarmType: "Temperature Alert", officer: "Nimal Silva", severity: "MAJOR" },
+                        { id: 7, time: "13/02/2026, 10:14:00", node: "MSAN-BLR-001", event: "NODE_UP", alarmType: "Node Online", officer: "Nimal Silva", severity: "INFO" }
+                    ]);
+                }
+            } catch (error) {
+                console.error("Error fetching events:", error);
+                // Set fallback data on error
+                setData([
+                    { id: 1, time: "13/02/2026, 10:23:03", node: "CEAN-BLR-001", event: "ALARM_RAISED", alarmType: "AC Alarm", officer: "John Silva", severity: "MAJOR" },
+                    { id: 2, time: "13/02/2026, 10:23:02", node: "CEAN-BLR-001", event: "ALARM_RAISED", alarmType: "Power Failure", officer: "John Silva", severity: "MAJOR" },
+                    { id: 3, time: "13/02/2026, 10:22:56", node: "CEAN-BLR-001", event: "NODE_DOWN", alarmType: "Node Offline", officer: "Mary Fernando", severity: "CRITICAL" },
+                    { id: 4, time: "13/02/2026, 10:20:10", node: "SLBN-DEL-001", event: "NODE_DOWN", alarmType: "Node Offline", officer: "Kamal Perera", severity: "CRITICAL" },
+                    { id: 5, time: "13/02/2026, 10:18:20", node: "SLBN-DEL-001", event: "NODE_UP", alarmType: "Node Online", officer: "Kamal Perera", severity: "INFO" },
+                    { id: 6, time: "13/02/2026, 10:15:05", node: "MSAN-BLR-001", event: "ALARM_RAISED", alarmType: "Temperature Alert", officer: "Nimal Silva", severity: "MAJOR" },
+                    { id: 7, time: "13/02/2026, 10:14:00", node: "MSAN-BLR-001", event: "NODE_UP", alarmType: "Node Online", officer: "Nimal Silva", severity: "INFO" }
+                ]);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchEvents();
+    }, []);
 
     const nodes = ["All", ...new Set(data.map((d) => d.node))];
 
@@ -25,7 +57,7 @@ const EventPage = () => {
         return (
             (selectedNode === "All" || d.node === selectedNode) &&
             (d.node.toLowerCase().includes(search.toLowerCase()) ||
-             d.msg.toLowerCase().includes(search.toLowerCase())) &&
+             d.alarmType.toLowerCase().includes(search.toLowerCase())) &&
             (!selectedDate ||
              eventDate.toDateString() === selectedDate.toDateString())
         );
@@ -71,7 +103,7 @@ const EventPage = () => {
                     <div className="flex flex-1 items-center overflow-hidden rounded-lg border border-gray-300">
                         <input
                             type="text"
-                            placeholder="Search node or message..."
+                            placeholder="Search node or alarm type..."
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                             className="flex-1 px-3 py-2 text-sm focus:outline-none"
@@ -115,18 +147,26 @@ const EventPage = () => {
                             <tr className="border-b border-gray-200 bg-gray-50">
                                 <th className="px-4 py-3 text-xs font-semibold uppercase text-gray-600">Timestamp</th>
                                 <th className="px-4 py-3 text-xs font-semibold uppercase text-gray-600">Node</th>
-                                <th className="px-4 py-3 text-xs font-semibold uppercase text-gray-600">Type</th>
                                 <th className="px-4 py-3 text-xs font-semibold uppercase text-gray-600">Event Type</th>
                                 <th className="px-4 py-3 text-xs font-semibold uppercase text-gray-600">Officer</th>
-                                <th className="px-4 py-3 text-xs font-semibold uppercase text-gray-600">Severity</th>
-                                <th className="px-4 py-3 text-xs font-semibold uppercase text-gray-600">Message</th>
+                                <th className="px-4 py-3 text-xs font-semibold uppercase text-gray-600">Device Priority</th>
+                                <th className="px-4 py-3 text-xs font-semibold uppercase text-gray-600">Alarm Type</th>
                             </tr>
                         </thead>
 
                         <tbody>
-                            {filtered.length === 0 ? (
+                            {loading ? (
                                 <tr>
-                                    <td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-400">
+                                    <td colSpan={6} className="px-4 py-8 text-center text-sm text-gray-400">
+                                        <div className="flex items-center justify-center gap-2">
+                                            <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                                            Loading events...
+                                        </div>
+                                    </td>
+                                </tr>
+                            ) : filtered.length === 0 ? (
+                                <tr>
+                                    <td colSpan={6} className="px-4 py-8 text-center text-sm text-gray-400">
                                         No events found.
                                     </td>
                                 </tr>
@@ -139,11 +179,6 @@ const EventPage = () => {
                                         <td className="px-4 py-3 font-mono text-xs text-gray-600">{d.time}</td>
                                         <td className="px-4 py-3 font-medium text-gray-800">{d.node}</td>
                                         <td className="px-4 py-3">
-                                            <span className="rounded bg-purple-100 px-2 py-1 text-xs font-semibold text-purple-700">
-                                                {d.type}
-                                            </span>
-                                        </td>
-                                        <td className="px-4 py-3">
                                             <span className="rounded bg-gray-100 px-2 py-1 text-xs font-semibold text-gray-700">
                                                 {d.event}
                                             </span>
@@ -154,7 +189,7 @@ const EventPage = () => {
                                                 {d.severity}
                                             </span>
                                         </td>
-                                        <td className="max-w-xs truncate px-4 py-3 text-gray-600">{d.msg}</td>
+                                        <td className="max-w-xs truncate px-4 py-3 text-gray-600">{d.alarmType}</td>
                                     </tr>
                                 ))
                             )}

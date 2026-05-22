@@ -42,6 +42,9 @@ public class UserRepository : IUserRepository
         var user = await _context.Users.FindAsync(id);
         if (user != null)
         {
+            var assignments = await _context.UserAreaAssignments
+                .Where(a => a.UserId == id).ToListAsync();
+            _context.UserAreaAssignments.RemoveRange(assignments);
             _context.Users.Remove(user);
             await _context.SaveChangesAsync();
         }
