@@ -19,9 +19,17 @@ if (File.Exists(envPath))
 
 var builder = WebApplication.CreateBuilder(args);
 
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+if (string.IsNullOrWhiteSpace(connectionString))
+{
+    throw new InvalidOperationException(
+        "Missing connection string 'DefaultConnection'. Add Backend/INMS.API/.env with " +
+        "ConnectionStrings__DefaultConnection=Server=localhost;Database=INMS_SLT;Trusted_Connection=True;TrustServerCertificate=True;MultipleActiveResultSets=true");
+}
+
 // Add services to the container.
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"), sqlOptions =>
+    options.UseSqlServer(connectionString, sqlOptions =>
     {
         sqlOptions.CommandTimeout(60);
         sqlOptions.EnableRetryOnFailure(3, TimeSpan.FromSeconds(5), null);

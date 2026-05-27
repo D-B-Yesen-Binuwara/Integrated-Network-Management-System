@@ -63,6 +63,14 @@ public class AppDbContext : DbContext
             .HasConversion<string>();
 
         modelBuilder.Entity<Device>()
+            .Property(d => d.Latitude)
+            .HasPrecision(9, 6);
+
+        modelBuilder.Entity<Device>()
+            .Property(d => d.Longitude)
+            .HasPrecision(9, 6);
+
+        modelBuilder.Entity<Device>()
             .HasOne(d => d.AssignedUser)
             .WithMany()
             .HasForeignKey(d => d.AssignedUserId)
