@@ -17,6 +17,12 @@ public class User
     [MaxLength(150)]
     public string FullName { get; set; } = string.Empty;
 
+    [MaxLength(50)]
+    public string? ServiceId { get; set; }
+
+    [MaxLength(150)]
+    public string? Email { get; set; }
+
     public int RoleId { get; set; }
     public Role? Role { get; set; }
 }

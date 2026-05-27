@@ -44,7 +44,7 @@ const NetworkMap = () => {
     }).addTo(mapInstance.current);
 
     markerLayer.current.addTo(mapInstance.current);
-    
+
     setTimeout(() => {
       if (mapInstance.current) {
         mapInstance.current.invalidateSize();
@@ -179,7 +179,7 @@ const NetworkMap = () => {
 
           {/* Map Container */}
           <div className="border-t border-gray-300 relative">
-            <div 
+            <div
               ref={mapContainer}
               style={{ height: '600px' }}
               className="w-full"

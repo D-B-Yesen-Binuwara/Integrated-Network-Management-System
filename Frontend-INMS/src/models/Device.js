@@ -4,7 +4,7 @@
  * @property {string} deviceName
  * @property {string|number} deviceType - text label or backend enum value
  * @property {string} ip
- * @property {string|number} status - UP/DOWN/UNREACHABLE or backend enum value
+ * @property {string|number} status - UP/DOWN or backend enum value
  * @property {string|number} priorityLevel - Low/Avg/High/Critical or backend enum value
  * @property {number} leaId
  * @property {number} latitude
@@ -17,7 +17,7 @@ export const deviceModelSchema = {
   deviceName: 'string',
   deviceType: 'string|number (enum: SLBN, CEAN, MSAN, Customer)',
   ip: 'string',
-  status: 'string|number (enum: UP, DOWN, UNREACHABLE)',
+  status: 'string|number (enum: UP, DOWN)',
   priorityLevel: 'string|number (enum: Low, Avg, High, Critical)',
   leaId: 'number',
   latitude: 'number',

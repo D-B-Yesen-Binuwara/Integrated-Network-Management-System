@@ -14,3 +14,11 @@
     @apply antialiased bg-gray-50 text-gray-900;
   }
 }
+
+/* Ensure fixed elements don't interfere with scrolling */
+@layer utilities {
+  .main-content {
+    height: calc(100vh - 4rem); /* Account for navbar height */
+    overflow-y: auto;
+  }
+}

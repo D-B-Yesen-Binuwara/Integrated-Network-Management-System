@@ -35,6 +35,14 @@ public class AlarmController : ControllerBase
         return Ok(result);
     }
 
+    // Fetch active alarms
+    [HttpGet("active")]
+    public async Task<IActionResult> GetActive()
+    {
+        var alarms = await _alarmService.GetActiveAsync();
+        return Ok(alarms);
+    }
+
     // Fetch a single alarm by ID
     [HttpGet("{id}")]
     public async Task<IActionResult> GetById(int id)

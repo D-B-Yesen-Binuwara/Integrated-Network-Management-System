@@ -25,6 +25,19 @@ public class SimulationEventService : ISimulationEventService
         return await _repository.AddAsync(simulationEvent);
     }
 
+    public async Task<SimulationEvent> LogAlarmEventAsync(int deviceId, string eventType, int alarmId, DateTime eventTime)
+    {
+        var simulationEvent = new SimulationEvent
+        {
+            DeviceId = deviceId,
+            EventType = eventType,
+            AlarmId = alarmId,
+            EventTime = eventTime
+        };
+
+        return await _repository.AddAsync(simulationEvent);
+    }
+
     public async Task<List<SimulationEvent>> GetDeviceEventsAsync(int deviceId)
     {
         return await _repository.GetByDeviceIdAsync(deviceId);

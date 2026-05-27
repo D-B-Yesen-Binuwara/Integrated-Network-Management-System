@@ -106,6 +106,70 @@ class DeviceService {
       throw error;
     }
   }
+
+  /**
+   * Assign a device to a user
+   * @param {number} id
+   * @param {number} userId
+   * @returns {Promise<Object>}
+   */
+  static async assignUser(id, userId) {
+    try {
+      const response = await apiClient.patch(`/device/${id}/assign`, { UserId: Number(userId) });
+      return response.data;
+    } catch (error) {
+      console.error(`Failed to assign device ${id}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update device status
+   * @param {number} id
+   * @param {string} status
+   * @returns {Promise<Object>}
+   */
+  static async updateStatus(id, status) {
+    try {
+      const response = await apiClient.patch(`/device/${id}/status`, { status });
+      return response.data;
+    } catch (error) {
+      console.error(`Failed to update status for device ${id}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Trigger simulated failure for a device
+   * @param {number} id
+   * @returns {Promise<Object>}
+   */
+  static async simulateFailure(id) {
+    try {
+      const response = await apiClient.post(`/device/${id}/simulate-failure`);
+      return response.data;
+    } catch (error) {
+      console.error(`Failed to simulate failure for device ${id}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Recover a simulated device back to normal heartbeat behavior
+   * @param {number} id
+   * @returns {Promise<Object>}
+   */
+  static async recover(id) {
+    try {
+      const response = await apiClient.post(`/device/${id}/recover`);
+      return response.data;
+    } catch (error) {
+      console.error(`Failed to recover device ${id}:`, error);
+      throw error;
+    }
+  }
+
 }
+
 
 export default DeviceService;

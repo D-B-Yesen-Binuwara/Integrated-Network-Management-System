@@ -52,6 +52,8 @@ public record DeviceListDto(
 	decimal Latitude,
 	decimal Longitude,
 	int? AssignedUserId,
+	string? AssignedUserFullName,
+	string? AssignedUserServiceId,
 	bool IsSimulatedDown
 );
 
