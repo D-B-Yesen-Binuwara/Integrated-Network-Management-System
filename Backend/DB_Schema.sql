@@ -1,6 +1,51 @@
-CREATE DATABASE INMS_SLT;
-USE INMS_SLT;
-DROP DATABASE INM_SLT;
+IF DB_ID('INMS_SLT') IS NOT NULL
+BEGIN
+    ALTER DATABASE [INMS_SLT] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+    DROP DATABASE [INMS_SLT];
+END;
+GO
+
+CREATE DATABASE [INMS_SLT];
+GO
+USE [INMS_SLT];
+GO
+
+/* =========================================================================================
+   INMS (Intelligent Network Management System) - Database Schema
+   =========================================================================================
+
+   TABLE DESCRIPTIONS & USAGE:
+
+   [Area Structure]
+   - Region: Represents high-level geographic areas. Used by frontend for map filtering and assignments.
+   - Province: Subdivisions of a Region. Used by frontend for cascading location dropdowns.
+   - LEA (Local Exchange Area): Lowest level geographic unit where devices are physically located.
+     Used by frontend to group devices and assign precise operational jurisdictions.
+
+   [Users & Access]
+   - Role: Defines permission levels (e.g., Admin, Region Officer). Determines what UI elements are visible.
+   - User: System accounts with authentication details.
+   - UserAreaAssignment: Links users to specific geographical areas (Region/Province/LEA) so the frontend
+     can restrict their dashboard and map to only show authorized devices.
+
+   [Devices & Topology]
+   - Device: The primary hardware nodes (SLBN, CEAN, MSAN). Contains coordinates and active status.
+     Vital for the frontend map rendering and device inventory tables.
+   - DeviceLink: Defines the parent-child relationships between devices. Used by the backend to calculate
+     downstream impacts, and by the frontend to potentially draw network topology diagrams.
+
+   [Alarms & Monitoring]
+   - Alarm: Current and historical alert states for devices (e.g., NODE_DOWN). Displayed heavily on the
+     frontend dashboard's active alarm feed and history logs.
+   - RootCause: Pinpoints the specific device responsible for an alarm. Helps frontend users identify
+     exactly which node to fix when multiple devices go down simultaneously.
+   - ImpactedDevice: Lists all downstream devices affected by a root cause. The frontend uses this to
+     highlight the "blast radius" of a failure on the map.
+   - Heartbeat: A raw log of ping/status checks for devices over time. Can be used by the frontend to show
+     uptime statistics or historical availability logs.
+   - SimulationEvent: Audit trail of manually triggered system failures. Used by the frontend to show users
+     what testing scenarios were executed and when.
+========================================================================================= */
 
 /* AREA STRUCTURE -------------------------------------------------------- */
 CREATE TABLE Region (
@@ -169,13 +214,13 @@ USE INMS_SLT;
 /* SAMPLE DATA - HIERARCHICAL STRUCTURE */
 
 -- Regions
-INSERT INTO Region (Name) VALUES 
+INSERT INTO Region (Name) VALUES
 ('Western Region'),
 ('Central Region'),
 ('Southern Region');
 
 -- Provinces
-INSERT INTO Province (Name, RegionId) VALUES 
+INSERT INTO Province (Name, RegionId) VALUES
 ('Colombo', 1),
 ('Gampaha', 1),
 ('Kandy', 2),
@@ -183,7 +228,7 @@ INSERT INTO Province (Name, RegionId) VALUES
 ('Matara', 3);
 
 -- LEAs ----
-INSERT INTO LEA (Name, ProvinceId) VALUES 
+INSERT INTO LEA (Name, ProvinceId) VALUES
 ('Colombo Central', 1),
 ('Colombo North', 1),
 ('Gampaha Town', 2),
@@ -191,7 +236,7 @@ INSERT INTO LEA (Name, ProvinceId) VALUES
 ('Galle Fort', 4);
 
 -- Roles
-INSERT INTO Role (Name) VALUES 
+INSERT INTO Role (Name) VALUES
 ('Admin'),
 ('Region Officer'),
 ('Province Officer'),
@@ -202,7 +247,7 @@ SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Role';
 
 
 -- Users
-INSERT INTO [User] (Username, PasswordHash, FullName, RoleId) VALUES 
+INSERT INTO [User] (Username, PasswordHash, FullName, RoleId) VALUES
 ('admin', 'hash123', 'System Admin', 1),
 ('officer1', 'hash456', 'John Silva', 4),
 ('officer2', 'hash789', 'Mary Fernando', 4);
@@ -219,7 +264,7 @@ INSERT INTO Device (DeviceName, DeviceType, IP, Status, PriorityLevel, LEAId, As
 ('MSAN-Gampaha-A1', 'MSAN', '10.20.1.1', 'UP', 'Avg', 3, 3);
 
 -- Device Links (Topology: SLBN → CEAN → MSAN)
-INSERT INTO DeviceLink (ParentDeviceId, ChildDeviceId, LinkStatus) VALUES 
+INSERT INTO DeviceLink (ParentDeviceId, ChildDeviceId, LinkStatus) VALUES
 (1, 3, 'UP'),
 (1, 4, 'UP'),
 (2, 5, 'UP'),
@@ -262,7 +307,7 @@ UPDATE Device SET Latitude = 6.9500, Longitude = 79.8700 WHERE DeviceId = 4;
 -- CEAN - Gampaha
 UPDATE Device SET Latitude = 7.0950, Longitude = 80.0020 WHERE DeviceId = 5;
 
--- MSAN - Colombo A1 
+-- MSAN - Colombo A1
 UPDATE Device SET Latitude = 6.9285, Longitude = 79.8625 WHERE DeviceId = 6;
 
 -- MSAN - Colombo A2
@@ -325,12 +370,12 @@ ALTER TABLE Device ADD IsSimulatedDown BIT NOT NULL DEFAULT 0;
 
 ---------------------- alarm id on eventsimulation ------------------
   -- Add the AlarmId column to SimulationEvent table
-ALTER TABLE SimulationEvent 
+ALTER TABLE SimulationEvent
 ADD AlarmId INT NULL;
 
 -- Add foreign key constraint linking to Alarm table
-ALTER TABLE SimulationEvent 
-ADD CONSTRAINT FK_SimulationEvent_Alarm 
+ALTER TABLE SimulationEvent
+ADD CONSTRAINT FK_SimulationEvent_Alarm
 FOREIGN KEY (AlarmId) REFERENCES Alarm(AlarmId);
 
 -- Optional: Create an index for performance on AlarmId lookups
@@ -346,11 +391,12 @@ select * from Heartbeat
 select * from Device
 select * from devicelink
 
-UPDATE Device 
-SET IsSimulatedDown = 1 
+UPDATE Device
+SET IsSimulatedDown = 1
 WHERE DeviceId = 5;
 
 --------------------  NEW ACC REQ -----------------------------
+/* ACCOUNT REQUESTS ------------------------------------------------------------------ */
 CREATE TABLE AccountRequest (
     RequestId    INT IDENTITY(1,1) PRIMARY KEY,
     FullName     NVARCHAR(150)  NOT NULL,
@@ -382,21 +428,21 @@ CREATE TABLE Vendor (
 );
 
 -- Add VendorId column to Device table
-ALTER TABLE Device 
+ALTER TABLE Device
 ADD VendorId INT NULL;
 
 -- Add foreign key constraint
-ALTER TABLE Device 
-ADD CONSTRAINT FK_Device_Vendor 
-FOREIGN KEY (VendorId) REFERENCES Vendor(VendorId) 
+ALTER TABLE Device
+ADD CONSTRAINT FK_Device_Vendor
+FOREIGN KEY (VendorId) REFERENCES Vendor(VendorId)
 ON DELETE SET NULL;
 
 -- Add check constraint to ensure Device.DeviceType matches Vendor.DeviceType
-ALTER TABLE Device 
-ADD CONSTRAINT CK_Device_Vendor_DeviceType_Match 
+ALTER TABLE Device
+ADD CONSTRAINT CK_Device_Vendor_DeviceType_Match
 CHECK (VendorId IS NULL OR NOT EXISTS (
-    SELECT 1 FROM Vendor v 
-    WHERE v.VendorId = Device.VendorId 
+    SELECT 1 FROM Vendor v
+    WHERE v.VendorId = Device.VendorId
     AND v.DeviceType != Device.DeviceType
 ));
 
@@ -406,7 +452,7 @@ CREATE INDEX IX_Vendor_DeviceType ON Vendor(DeviceType);
 CREATE INDEX IX_Vendor_Brand ON Vendor(Brand);
 
 -- Insert sample vendor data
-INSERT INTO Vendor (Name, Brand, DeviceType, Description, IsActive, CreatedAt) VALUES 
+INSERT INTO Vendor (Name, Brand, DeviceType, Description, IsActive, CreatedAt) VALUES
 ('Huawei SLBN Vendor', 'Huawei', 'SLBN', 'Huawei vendor for SLBN devices', 1, GETDATE()),
 ('Nokia CEAN Vendor', 'Nokia', 'CEAN', 'Nokia vendor for CEAN devices', 1, GETDATE()),
 ('ZTE MSAN Vendor', 'ZTE', 'MSAN', 'ZTE vendor for MSAN devices', 1, GETDATE()),
@@ -422,14 +468,14 @@ SELECT * FROM Vendor WHERE DeviceType = 0;      ---------------
 
 ----------------------   MULTIPLE VENDORS FOR A SINGLE DEVICE -------------------------------
 -- Check what constraints actually exist on Device table
-SELECT 
+SELECT
     CONSTRAINT_NAME,
     CONSTRAINT_TYPE
-FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS 
+FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS
 WHERE TABLE_NAME = 'Device';
 
 -- Check foreign key constraints specifically
-SELECT 
+SELECT
     fk.name AS FK_Name,
     tp.name AS Parent_Table,
     cp.name AS Parent_Column,
@@ -456,27 +502,27 @@ BEGIN
         IsActive BIT NOT NULL DEFAULT 1,
         AssignedBy NVARCHAR(100),
         Notes NVARCHAR(500),
-        
-        CONSTRAINT FK_DeviceVendor_Device 
-            FOREIGN KEY (DeviceId) 
-            REFERENCES Device(DeviceId) 
+
+        CONSTRAINT FK_DeviceVendor_Device
+            FOREIGN KEY (DeviceId)
+            REFERENCES Device(DeviceId)
             ON DELETE CASCADE,
 
-        CONSTRAINT FK_DeviceVendor_Vendor 
-            FOREIGN KEY (VendorId) 
-            REFERENCES Vendor(VendorId) 
+        CONSTRAINT FK_DeviceVendor_Vendor
+            FOREIGN KEY (VendorId)
+            REFERENCES Vendor(VendorId)
             ON DELETE CASCADE,
 
-        CONSTRAINT UQ_DeviceVendor_Active 
+        CONSTRAINT UQ_DeviceVendor_Active
             UNIQUE (DeviceId, VendorId, IsActive)
     );
 
 END
-    
+
     CREATE INDEX IX_DeviceVendor_DeviceId ON DeviceVendor(DeviceId);
     CREATE INDEX IX_DeviceVendor_VendorId ON DeviceVendor(VendorId);
     CREATE INDEX IX_DeviceVendor_IsActive ON DeviceVendor(IsActive);
-    
+
 -- Step 2: Drop index and VendorId column from Device table
 IF EXISTS (SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID('Device') AND name = 'IX_Device_VendorId')
 BEGIN

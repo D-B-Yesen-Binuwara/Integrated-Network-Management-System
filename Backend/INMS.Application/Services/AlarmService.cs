@@ -48,4 +48,10 @@ public class AlarmService : IAlarmService
     {
         return await _repository.DeleteAsync(id);
     }
+
+    public async Task<List<Alarm>> GetActiveAsync()
+    {
+        var all = await _repository.GetAllAsync();
+        return all.Where(a => a.IsActive).ToList();
+    }
 }
