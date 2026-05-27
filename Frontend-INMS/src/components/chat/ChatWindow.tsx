@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { X, Send, Bot, User } from 'lucide-react';
+import { X, Send, Bot, User, Mic, MicOff } from 'lucide-react';
 import useChatSession from './useChatSession';
 
 interface ChatWindowProps {
@@ -15,11 +15,14 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose }) => {
     setInputMessage,
     sendMessage,
     clearHistory,
+    checkForCriticalAlert,
     reloadHistory,
     suggestedPrompts
   } = useChatSession();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const recognitionRef = useRef<any>(null);
+  const [isListening, setIsListening] = React.useState(false);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -36,9 +39,56 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose }) => {
     }
   }, [isOpen, reloadHistory]);
 
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      void checkForCriticalAlert();
+    }, 60000);
+
+    const initialTimer = window.setTimeout(() => {
+      void checkForCriticalAlert();
+    }, 5000);
+
+    return () => {
+      window.clearInterval(timer);
+      window.clearTimeout(initialTimer);
+    };
+  }, [checkForCriticalAlert]);
+
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     await sendMessage();
+  };
+
+  const SpeechRecognition =
+    typeof window !== 'undefined'
+      ? (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+      : null;
+
+  const toggleVoiceInput = () => {
+    if (!SpeechRecognition) {
+      return;
+    }
+
+    if (isListening && recognitionRef.current) {
+      recognitionRef.current.stop();
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'en-US';
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+    recognition.onstart = () => setIsListening(true);
+    recognition.onend = () => setIsListening(false);
+    recognition.onerror = () => setIsListening(false);
+    recognition.onresult = (event: any) => {
+      const transcript = event.results?.[0]?.[0]?.transcript;
+      if (transcript) {
+        setInputMessage(transcript);
+      }
+    };
+    recognitionRef.current = recognition;
+    recognition.start();
   };
 
   if (!isOpen) return null;
@@ -161,6 +211,21 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose }) => {
             className="flex-1 px-3 py-2 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
             disabled={isLoading}
           />
+          {SpeechRecognition && (
+            <button
+              type="button"
+              onClick={toggleVoiceInput}
+              disabled={isLoading}
+              className={`p-2 rounded-full transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${
+                isListening
+                  ? 'bg-red-100 text-red-600 hover:bg-red-200'
+                  : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
+              }`}
+              aria-label={isListening ? 'Stop voice input' : 'Start voice input'}
+            >
+              {isListening ? <MicOff size={16} /> : <Mic size={16} />}
+            </button>
+          )}
           <button
             type="submit"
             disabled={!inputMessage.trim() || isLoading}

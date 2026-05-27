@@ -15,7 +15,7 @@ namespace INMS.Application.Services
     {
         private const string OllamaUrl = "http://localhost:11434/api/generate";
         private const string OllamaModel = "llama3";
-        private const int OllamaRequestTimeoutSeconds = 10;
+        private const int OllamaRequestTimeoutSeconds = 30;
         private const int OllamaMaxResponseTokens = 120;
         private const string GeneralSystemPrompt = @"You are a Network Operations Assistant for an Integrated Network Management System.
 You understand SLBN, CEAN, and MSAN layers.
@@ -24,11 +24,13 @@ Use the live read-only database context when it is provided.
 Never claim that you updated, deleted, inserted, approved, rejected, or changed database data.
 If the question asks for live data that is not present in the context, ask for a more specific table, record, device, alarm, area, or ID.
 Keep responses under four short sentences.
+If the user writes in Singlish or romanized Sinhala, answer in clear Singlish using Latin letters.
 Be concise and technical.";
         private const int AlarmPreviewLimit = 10;
         private const int ImpactedDevicePreviewLimit = 10;
         private const int DevicePreviewLimit = 10;
         private const int DatabasePreviewLimit = 10;
+        private const int TrendPreviewLimit = 5;
 
         private static readonly string[] DeviceStatusMarkers =
         [
@@ -88,6 +90,11 @@ Be concise and technical.";
                     ChatIntent.CriticalAlarms => await HandleCriticalAlarmsIntentAsync(trimmedMessage),
                     ChatIntent.RootCause => await HandleRootCauseIntentAsync(trimmedMessage),
                     ChatIntent.ImpactedDevices => await HandleImpactedDevicesIntentAsync(trimmedMessage),
+                    ChatIntent.TroubleshootingGuide => HandleTroubleshootingGuideIntent(trimmedMessage),
+                    ChatIntent.IncidentSummary => await HandleIncidentSummaryIntentAsync(trimmedMessage),
+                    ChatIntent.TrendInsights => await HandleTrendInsightsIntentAsync(trimmedMessage),
+                    ChatIntent.TicketEscalation => await HandleTicketEscalationIntentAsync(trimmedMessage),
+                    ChatIntent.KnowledgeBase => HandleKnowledgeBaseIntent(trimmedMessage),
                     ChatIntent.DatabaseLookup => await HandleDatabaseLookupIntentAsync(trimmedMessage),
                     _ => await GenerateGeneralResponseAsync(trimmedMessage)
                 };
@@ -134,7 +141,9 @@ Be concise and technical.";
                     "Ollama request timed out while processing chat request after {ElapsedMilliseconds} ms: {UserMessage}",
                     stopwatch.ElapsedMilliseconds,
                     trimmedMessage);
-                return "The AI response timed out. Please try again.";
+                return PrefersSinglishResponse(trimmedMessage)
+                    ? "AI response eka timeout una. Please ayemath try karanna."
+                    : "The AI response timed out. Please try again.";
             }
             catch (Exception ex)
             {
@@ -242,6 +251,36 @@ Be concise and technical.";
                 matchedDevice.IsSimulatedDown,
                 alarmSummary?.ActiveAlarmCount ?? 0,
                 alarmSummary?.LatestAlarmRaisedTime);
+        }
+
+        private async Task<AlarmDetail?> GetAlarmDetailAsync(int alarmId)
+        {
+            return await (
+                from alarm in _dbContext.Alarms.AsNoTracking()
+                join device in _dbContext.Devices.AsNoTracking() on alarm.DeviceId equals device.DeviceId into deviceGroup
+                from device in deviceGroup.DefaultIfEmpty()
+                join lea in _dbContext.LEAs.AsNoTracking() on device == null ? 0 : device.LEAId equals lea.LEAId into leaGroup
+                from lea in leaGroup.DefaultIfEmpty()
+                join province in _dbContext.Provinces.AsNoTracking() on lea == null ? 0 : lea.ProvinceId equals province.ProvinceId into provinceGroup
+                from province in provinceGroup.DefaultIfEmpty()
+                join region in _dbContext.Regions.AsNoTracking() on province == null ? 0 : province.RegionId equals region.RegionId into regionGroup
+                from region in regionGroup.DefaultIfEmpty()
+                where alarm.AlarmId == alarmId
+                select new AlarmDetail(
+                    alarm.AlarmId,
+                    alarm.DeviceId,
+                    device == null ? $"Device #{alarm.DeviceId}" : device.DeviceName,
+                    device == null ? "Unknown" : device.DeviceType.ToString(),
+                    device == null ? DeviceStatus.UNREACHABLE : device.Status,
+                    device == null ? PriorityLevel.Low : device.PriorityLevel,
+                    alarm.AlarmType,
+                    alarm.RaisedTime,
+                    alarm.ClearedTime,
+                    alarm.IsActive,
+                    lea == null ? "Unknown" : lea.Name,
+                    province == null ? "Unknown" : province.Name,
+                    region == null ? "Unknown" : region.Name))
+                .FirstOrDefaultAsync();
         }
 
         public async Task<IReadOnlyList<AlarmSummary>> GetCriticalAlarmsAsync()
@@ -353,30 +392,47 @@ Be concise and technical.";
         private async Task<string> HandleTotalNodesIntentAsync(string userMessage)
         {
             var nodeSummary = await GetActiveNodeCountAsync();
+            if (PrefersSinglishResponse(userMessage))
+            {
+                return $"Meke total nodes {nodeSummary.TotalNodes} thiyanawa. Eken {nodeSummary.ActiveNodes} active, {nodeSummary.DownNodes} down/unreachable.";
+            }
+
             return $"There are {nodeSummary.TotalNodes} total nodes in the network: {nodeSummary.ActiveNodes} active and {nodeSummary.DownNodes} down or unreachable.";
         }
 
         private async Task<string> HandleActiveNodesIntentAsync(string userMessage)
         {
+            var deviceType = DetectDeviceType(userMessage);
             if (WantsList(userMessage))
             {
-                var snapshot = await GetDeviceSnapshotAsync(activeOnly: true, DevicePreviewLimit);
-                return BuildDeviceSnapshotResponse(snapshot, "active nodes");
+                var snapshot = await GetDeviceSnapshotAsync(activeOnly: true, deviceType, DevicePreviewLimit);
+                return BuildDeviceSnapshotResponse(snapshot, BuildDeviceFilterLabel(deviceType, "active nodes"));
             }
 
             var activeNodeSummary = await GetActiveNodeCountAsync();
+            if (PrefersSinglishResponse(userMessage))
+            {
+                return $"Meke active nodes {activeNodeSummary.ActiveNodes}/{activeNodeSummary.TotalNodes}. Down/unreachable nodes {activeNodeSummary.DownNodes} thiyanawa.";
+            }
+
             return $"{activeNodeSummary.ActiveNodes} of {activeNodeSummary.TotalNodes} network nodes are currently active. {activeNodeSummary.DownNodes} are down or unreachable.";
         }
 
         private async Task<string> HandleDownNodesIntentAsync(string userMessage)
         {
+            var deviceType = DetectDeviceType(userMessage);
             if (WantsList(userMessage))
             {
-                var snapshot = await GetDeviceSnapshotAsync(activeOnly: false, DevicePreviewLimit);
-                return BuildDeviceSnapshotResponse(snapshot, "down or unreachable nodes");
+                var snapshot = await GetDeviceSnapshotAsync(activeOnly: false, deviceType, DevicePreviewLimit);
+                return BuildDeviceSnapshotResponse(snapshot, BuildDeviceFilterLabel(deviceType, "down or unreachable nodes"));
             }
 
             var nodeSummary = await GetActiveNodeCountAsync();
+            if (PrefersSinglishResponse(userMessage))
+            {
+                return $"Meke down/unreachable nodes {nodeSummary.DownNodes} thiyanawa. Active nodes {nodeSummary.ActiveNodes}/{nodeSummary.TotalNodes}.";
+            }
+
             return $"{nodeSummary.DownNodes} network nodes are currently down or unreachable. {nodeSummary.ActiveNodes} remain active out of {nodeSummary.TotalNodes} total nodes.";
         }
 
@@ -394,8 +450,9 @@ Be concise and technical.";
 
         private async Task<string> HandleActiveAlarmsIntentAsync(string userMessage)
         {
-            var snapshot = await GetAlarmSnapshotAsync(criticalOnly: false, AlarmPreviewLimit);
-            return BuildAlarmSnapshotResponse(snapshot, "active alarms");
+            var filters = ParseAlarmFilters(userMessage);
+            var snapshot = await GetAlarmSnapshotAsync(filters with { CriticalOnly = false }, AlarmPreviewLimit);
+            return BuildAlarmSnapshotResponse(snapshot, BuildAlarmFilterLabel(filters, "active alarms"));
         }
 
         private async Task<string> HandleNetworkOverviewIntentAsync(string userMessage)
@@ -411,6 +468,11 @@ Be concise and technical.";
                 where alarm.IsActive && device.PriorityLevel == PriorityLevel.Critical
                 select alarm.AlarmId)
                 .CountAsync();
+
+            if (PrefersSinglishResponse(userMessage))
+            {
+                return $"Network overview eka: nodes {nodeSummary.ActiveNodes}/{nodeSummary.TotalNodes} active. Down/unreachable {nodeSummary.DownNodes}, active alarms {activeAlarmCount}, critical active alarms {criticalAlarmCount}.";
+            }
 
             return $"Network overview: {nodeSummary.ActiveNodes}/{nodeSummary.TotalNodes} nodes are active, {nodeSummary.DownNodes} are down or unreachable, and there are {activeAlarmCount} active alarms. Critical-priority active alarms: {criticalAlarmCount}.";
         }
@@ -434,8 +496,9 @@ Be concise and technical.";
 
         private async Task<string> HandleCriticalAlarmsIntentAsync(string userMessage)
         {
-            var snapshot = await GetAlarmSnapshotAsync(criticalOnly: true, AlarmPreviewLimit);
-            return BuildAlarmSnapshotResponse(snapshot, "critical alarms");
+            var filters = ParseAlarmFilters(userMessage) with { CriticalOnly = true };
+            var snapshot = await GetAlarmSnapshotAsync(filters, AlarmPreviewLimit);
+            return BuildAlarmSnapshotResponse(snapshot, BuildAlarmFilterLabel(filters, "critical alarms"));
         }
 
         private async Task<string> HandleRootCauseIntentAsync(string userMessage)
@@ -472,6 +535,98 @@ Be concise and technical.";
             return BuildImpactedDevicesResponse(alarmId.Value, impactedDevices);
         }
 
+        private static string HandleTroubleshootingGuideIntent(string userMessage)
+        {
+            var alarmType = ExtractAlarmType(userMessage) ?? "NODE_DOWN";
+            return BuildTroubleshootingGuideResponse(alarmType);
+        }
+
+        private async Task<string> HandleIncidentSummaryIntentAsync(string userMessage)
+        {
+            var alarmId = ExtractAlarmId(userMessage);
+            if (alarmId == null)
+            {
+                return "Please include an alarm ID for an incident summary. Example: incident summary for alarm 12.";
+            }
+
+            var alarm = await GetAlarmDetailAsync(alarmId.Value);
+            if (alarm == null)
+            {
+                return $"No alarm was found for alarm ID {alarmId.Value}.";
+            }
+
+            var rootCause = await GetRootCauseAsync(alarmId.Value);
+            IReadOnlyList<ImpactedDeviceSummary> impactedDevices = rootCause == null
+                ? Array.Empty<ImpactedDeviceSummary>()
+                : await GetImpactedDevicesAsync(alarmId.Value);
+
+            return BuildIncidentSummaryResponse(alarm, rootCause, impactedDevices);
+        }
+
+        private async Task<string> HandleTrendInsightsIntentAsync(string userMessage)
+        {
+            var normalized = userMessage.ToLowerInvariant();
+            if (ContainsAny(normalized, "most alarms", "area has most", "highest alarms", "alarm hot", "alarm trend"))
+            {
+                return await BuildTopAlarmAreasInsightAsync(ExtractTimeWindow(userMessage, 7));
+            }
+
+            if (ContainsAny(normalized, "recurring", "repeated", "top failed", "most failed", "frequent failed"))
+            {
+                return await BuildRecurringFailedDevicesInsightAsync(ExtractTimeWindow(userMessage, 30));
+            }
+
+            if (ContainsAny(normalized, "unstable", "heartbeat", "flapping", "possible unstable"))
+            {
+                return await BuildUnstableNodesInsightAsync(ExtractTimeWindow(userMessage, 7));
+            }
+
+            return await BuildTopAlarmAreasInsightAsync(7);
+        }
+
+        private async Task<string> HandleTicketEscalationIntentAsync(string userMessage)
+        {
+            var alarmId = ExtractAlarmId(userMessage);
+            if (alarmId == null)
+            {
+                return "I can draft an escalation, but I need an alarm ID first. Example: create ticket for alarm 12.";
+            }
+
+            var alarm = await GetAlarmDetailAsync(alarmId.Value);
+            if (alarm == null)
+            {
+                return $"I couldn't find alarm {alarmId.Value}, so I did not create or draft a ticket.";
+            }
+
+            return BuildTicketDraftResponse(alarm);
+        }
+
+        private static string HandleKnowledgeBaseIntent(string userMessage)
+        {
+            var normalized = userMessage.ToLowerInvariant();
+            if (ContainsAny(normalized, "sop", "runbook", "troubleshooting manual", "manual"))
+            {
+                return "SOP quick guide: confirm alarm scope, check parent link and power, verify latest heartbeat, inspect root cause/impact, escalate critical service-impacting faults, and record actions in the incident ticket.";
+            }
+
+            if (ContainsAny(normalized, "slbn"))
+            {
+                return "SLBN knowledge: backbone/service layer. Prioritize SLBN alarms because one upstream fault can impact many CEAN/MSAN nodes. First checks: upstream reachability, power, transport links, and root-cause correlation.";
+            }
+
+            if (ContainsAny(normalized, "cean"))
+            {
+                return "CEAN knowledge: aggregation/access layer between SLBN and MSAN. First checks: parent SLBN reachability, aggregation link status, device power, and downstream impact count.";
+            }
+
+            if (ContainsAny(normalized, "msan"))
+            {
+                return "MSAN knowledge: access node serving downstream services/customers. First checks: power/battery, parent CEAN link, heartbeat freshness, and whether the fault is local or upstream.";
+            }
+
+            return "Knowledge base topics available: SLBN, CEAN, MSAN, alarm SOP, troubleshooting manual, root cause, and impacted devices.";
+        }
+
         private async Task<string> HandleDatabaseLookupIntentAsync(string userMessage)
         {
             var table = DetectDatabaseTable(userMessage);
@@ -494,21 +649,56 @@ Be concise and technical.";
 
         private async Task<AlarmSnapshot> GetAlarmSnapshotAsync(bool criticalOnly, int limit)
         {
+            return await GetAlarmSnapshotAsync(new AlarmQueryFilters(CriticalOnly: criticalOnly), limit);
+        }
+
+        private async Task<AlarmSnapshot> GetAlarmSnapshotAsync(AlarmQueryFilters filters, int limit)
+        {
             var query =
                 from alarm in _dbContext.Alarms.AsNoTracking()
                 join device in _dbContext.Devices.AsNoTracking() on alarm.DeviceId equals device.DeviceId into deviceGroup
                 from device in deviceGroup.DefaultIfEmpty()
-                where alarm.IsActive && (!criticalOnly || (device != null && device.PriorityLevel == PriorityLevel.Critical))
+                join lea in _dbContext.LEAs.AsNoTracking() on device == null ? 0 : device.LEAId equals lea.LEAId into leaGroup
+                from lea in leaGroup.DefaultIfEmpty()
+                join province in _dbContext.Provinces.AsNoTracking() on lea == null ? 0 : lea.ProvinceId equals province.ProvinceId into provinceGroup
+                from province in provinceGroup.DefaultIfEmpty()
+                join region in _dbContext.Regions.AsNoTracking() on province == null ? 0 : province.RegionId equals region.RegionId into regionGroup
+                from region in regionGroup.DefaultIfEmpty()
+                where alarm.IsActive && (!filters.CriticalOnly || (device != null && device.PriorityLevel == PriorityLevel.Critical))
                 select new
                 {
                     alarm.AlarmId,
                     alarm.DeviceId,
                     DeviceName = device == null ? null : device.DeviceName,
+                    DeviceType = device == null ? (DeviceType?)null : device.DeviceType,
                     alarm.AlarmType,
                     alarm.RaisedTime,
                     Status = device == null ? (DeviceStatus?)null : device.Status,
-                    PriorityLevel = device == null ? (PriorityLevel?)null : device.PriorityLevel
+                    PriorityLevel = device == null ? (PriorityLevel?)null : device.PriorityLevel,
+                    LeaName = lea == null ? null : lea.Name,
+                    ProvinceName = province == null ? null : province.Name,
+                    RegionName = region == null ? null : region.Name
                 };
+
+            if (filters.DeviceType.HasValue)
+            {
+                query = query.Where(row => row.DeviceType == filters.DeviceType.Value);
+            }
+
+            if (filters.SinceUtc.HasValue)
+            {
+                query = query.Where(row => row.RaisedTime >= filters.SinceUtc.Value);
+            }
+
+            if (!string.IsNullOrWhiteSpace(filters.Location))
+            {
+                var locationPattern = $"%{NormalizeLookupValue(filters.Location)}%";
+                query = query.Where(row =>
+                    row.DeviceName != null && EF.Functions.Like(row.DeviceName.ToLower(), locationPattern) ||
+                    row.LeaName != null && EF.Functions.Like(row.LeaName.ToLower(), locationPattern) ||
+                    row.ProvinceName != null && EF.Functions.Like(row.ProvinceName.ToLower(), locationPattern) ||
+                    row.RegionName != null && EF.Functions.Like(row.RegionName.ToLower(), locationPattern));
+            }
 
             var totalCount = await query.CountAsync();
             var rows = await query
@@ -533,6 +723,11 @@ Be concise and technical.";
 
         private async Task<DeviceSnapshot> GetDeviceSnapshotAsync(bool activeOnly, int limit)
         {
+            return await GetDeviceSnapshotAsync(activeOnly, null, limit);
+        }
+
+        private async Task<DeviceSnapshot> GetDeviceSnapshotAsync(bool activeOnly, DeviceType? deviceType, int limit)
+        {
             var query = _dbContext.Devices.AsNoTracking();
 
             query = activeOnly
@@ -541,6 +736,11 @@ Be concise and technical.";
                     device.Status == DeviceStatus.DOWN ||
                     device.Status == DeviceStatus.UNREACHABLE ||
                     device.IsSimulatedDown);
+
+            if (deviceType.HasValue)
+            {
+                query = query.Where(device => device.DeviceType == deviceType.Value);
+            }
 
             var totalCount = await query.CountAsync();
             var rows = await query
@@ -894,6 +1094,142 @@ Be concise and technical.";
             return builder.ToString().TrimEnd();
         }
 
+        private async Task<string> BuildTopAlarmAreasInsightAsync(int days)
+        {
+            var sinceUtc = DateTime.UtcNow.AddDays(-days);
+            var rows = await (
+                from alarm in _dbContext.Alarms.AsNoTracking()
+                join device in _dbContext.Devices.AsNoTracking() on alarm.DeviceId equals device.DeviceId
+                join lea in _dbContext.LEAs.AsNoTracking() on device.LEAId equals lea.LEAId into leaGroup
+                from lea in leaGroup.DefaultIfEmpty()
+                join province in _dbContext.Provinces.AsNoTracking() on lea == null ? 0 : lea.ProvinceId equals province.ProvinceId into provinceGroup
+                from province in provinceGroup.DefaultIfEmpty()
+                join region in _dbContext.Regions.AsNoTracking() on province == null ? 0 : province.RegionId equals region.RegionId into regionGroup
+                from region in regionGroup.DefaultIfEmpty()
+                where alarm.RaisedTime >= sinceUtc
+                group alarm by new
+                {
+                    LeaName = lea == null ? "Unknown LEA" : lea.Name,
+                    ProvinceName = province == null ? "Unknown Province" : province.Name,
+                    RegionName = region == null ? "Unknown Region" : region.Name
+                }
+                into areaGroup
+                orderby areaGroup.Count() descending
+                select new
+                {
+                    areaGroup.Key.LeaName,
+                    areaGroup.Key.ProvinceName,
+                    areaGroup.Key.RegionName,
+                    AlarmCount = areaGroup.Count()
+                })
+                .Take(TrendPreviewLimit)
+                .ToListAsync();
+
+            if (rows.Count == 0)
+            {
+                return $"No alarm trend data was found in the last {days} day(s).";
+            }
+
+            var builder = new StringBuilder();
+            builder.AppendLine($"Top alarm areas in the last {days} day(s):");
+            foreach (var row in rows)
+            {
+                builder.AppendLine($"- {row.LeaName}, {row.ProvinceName}, {row.RegionName}: {row.AlarmCount} alarms");
+            }
+
+            return builder.ToString().TrimEnd();
+        }
+
+        private async Task<string> BuildRecurringFailedDevicesInsightAsync(int days)
+        {
+            var sinceUtc = DateTime.UtcNow.AddDays(-days);
+            var rows = await (
+                from alarm in _dbContext.Alarms.AsNoTracking()
+                join device in _dbContext.Devices.AsNoTracking() on alarm.DeviceId equals device.DeviceId into deviceGroup
+                from device in deviceGroup.DefaultIfEmpty()
+                where alarm.RaisedTime >= sinceUtc
+                group alarm by new
+                {
+                    alarm.DeviceId,
+                    DeviceName = device == null ? $"Device #{alarm.DeviceId}" : device.DeviceName,
+                    DeviceType = device == null ? "Unknown" : device.DeviceType.ToString(),
+                    Priority = device == null ? PriorityLevel.Low : device.PriorityLevel
+                }
+                into deviceGroup
+                orderby deviceGroup.Count() descending
+                select new
+                {
+                    deviceGroup.Key.DeviceId,
+                    deviceGroup.Key.DeviceName,
+                    deviceGroup.Key.DeviceType,
+                    deviceGroup.Key.Priority,
+                    AlarmCount = deviceGroup.Count()
+                })
+                .Take(TrendPreviewLimit)
+                .ToListAsync();
+
+            if (rows.Count == 0)
+            {
+                return $"No recurring failure data was found in the last {days} day(s).";
+            }
+
+            var builder = new StringBuilder();
+            builder.AppendLine($"Top recurring failed devices in the last {days} day(s):");
+            foreach (var row in rows)
+            {
+                builder.AppendLine($"- {row.DeviceName} (Device {row.DeviceId}) | {row.DeviceType} | Priority {row.Priority} | {row.AlarmCount} alarms");
+            }
+
+            return builder.ToString().TrimEnd();
+        }
+
+        private async Task<string> BuildUnstableNodesInsightAsync(int days)
+        {
+            var sinceUtc = DateTime.UtcNow.AddDays(-days);
+            var rows = await (
+                from heartbeat in _dbContext.Heartbeats.AsNoTracking()
+                join device in _dbContext.Devices.AsNoTracking() on heartbeat.DeviceId equals device.DeviceId into deviceGroup
+                from device in deviceGroup.DefaultIfEmpty()
+                where heartbeat.Timestamp >= sinceUtc
+                group heartbeat by new
+                {
+                    heartbeat.DeviceId,
+                    DeviceName = device == null ? $"Device #{heartbeat.DeviceId}" : device.DeviceName,
+                    DeviceType = device == null ? "Unknown" : device.DeviceType.ToString(),
+                    Priority = device == null ? PriorityLevel.Low : device.PriorityLevel
+                }
+                into heartbeatGroup
+                let total = heartbeatGroup.Count()
+                let bad = heartbeatGroup.Sum(item => item.Status.ToLower() == "up" || item.Status.ToLower() == "ok" || item.Status.ToLower() == "online" ? 0 : 1)
+                where total >= 2 && bad > 0
+                orderby bad descending, total descending
+                select new
+                {
+                    heartbeatGroup.Key.DeviceId,
+                    heartbeatGroup.Key.DeviceName,
+                    heartbeatGroup.Key.DeviceType,
+                    heartbeatGroup.Key.Priority,
+                    TotalHeartbeats = total,
+                    BadHeartbeats = bad
+                })
+                .Take(TrendPreviewLimit)
+                .ToListAsync();
+
+            if (rows.Count == 0)
+            {
+                return $"No unstable heartbeat patterns were found in the last {days} day(s).";
+            }
+
+            var builder = new StringBuilder();
+            builder.AppendLine($"Possible unstable nodes from heartbeat history in the last {days} day(s):");
+            foreach (var row in rows)
+            {
+                builder.AppendLine($"- {row.DeviceName} (Device {row.DeviceId}) | {row.DeviceType} | Priority {row.Priority} | {row.BadHeartbeats}/{row.TotalHeartbeats} non-UP heartbeats");
+            }
+
+            return builder.ToString().TrimEnd();
+        }
+
         private async Task<string> RequestOllamaResponseAsync(string prompt)
         {
             var requestBody = new
@@ -926,6 +1262,71 @@ Be concise and technical.";
         {
             var normalized = userMessage.ToLowerInvariant();
 
+            if (ContainsAny(normalized,
+                    "troubleshooting",
+                    "troubleshoot",
+                    "first action",
+                    "possible cause",
+                    "alarm guide",
+                    "guide for alarm",
+                    "mokakda karanna",
+                    "monawada balanna"))
+            {
+                return ChatIntent.TroubleshootingGuide;
+            }
+
+            if (ContainsAny(normalized,
+                    "incident summary",
+                    "incident report",
+                    "alarm summary",
+                    "summary for alarm",
+                    "short report"))
+            {
+                return ChatIntent.IncidentSummary;
+            }
+
+            if (ContainsAny(normalized,
+                    "trend",
+                    "this week",
+                    "last week",
+                    "last 7 days",
+                    "last 30 days",
+                    "most alarms",
+                    "area has most",
+                    "recurring",
+                    "repeated",
+                    "top failed",
+                    "most failed",
+                    "unstable",
+                    "flapping",
+                    "heartbeat history"))
+            {
+                return ChatIntent.TrendInsights;
+            }
+
+            if (ContainsAny(normalized,
+                    "create ticket",
+                    "open ticket",
+                    "raise ticket",
+                    "escalate",
+                    "assign engineer",
+                    "assign to engineer",
+                    "ticket status"))
+            {
+                return ChatIntent.TicketEscalation;
+            }
+
+            if (ContainsAny(normalized,
+                    "knowledge base",
+                    "kb",
+                    "sop",
+                    "runbook",
+                    "manual",
+                    "troubleshooting manual"))
+            {
+                return ChatIntent.KnowledgeBase;
+            }
+
             if (ExtractLocationFromNodeQuery(userMessage) != null)
             {
                 return ChatIntent.LocationNodes;
@@ -950,7 +1351,8 @@ Be concise and technical.";
                     "device ganana",
                     "count of nodes",
                     "count of devices",
-                    "all nodes count"))
+                    "all nodes count") ||
+                IsTotalNodeQuery(normalized))
             {
                 return ChatIntent.TotalNodes;
             }
@@ -967,6 +1369,8 @@ Be concise and technical.";
                     "online devices",
                     "healthy nodes",
                     "working nodes",
+                    "wada karana nodes",
+                    "weda karana nodes",
                     "running nodes",
                     "available nodes",
                     "how many are up",
@@ -993,6 +1397,10 @@ Be concise and technical.";
                     "faulty devices",
                     "not working nodes",
                     "not working devices",
+                    "wada nathi nodes",
+                    "weda nathi nodes",
+                    "wada nethi nodes",
+                    "weda nethi nodes",
                     "how many are down",
                     "how many down",
                     "down nodes keeyada",
@@ -1492,10 +1900,37 @@ Be concise and technical.";
             return ContainsAny(normalized, "node", "nodes", "device", "devices");
         }
 
+        private static bool IsTotalNodeQuery(string normalized)
+        {
+            return IsNodeOrDeviceQuery(normalized) &&
+                !IsActiveNodeQuery(normalized) &&
+                !IsDownNodeQuery(normalized) &&
+                ContainsAny(normalized,
+                    "total",
+                    "count",
+                    "how many",
+                    "number of",
+                    "all nodes",
+                    "all devices",
+                    "ganana",
+                    "gana",
+                    "keeyada",
+                    "keeyak",
+                    "kiyak",
+                    "kiyada",
+                    "kiek",
+                    "kochchara",
+                    "kocchara",
+                    "thiyanawada",
+                    "thiyenawada",
+                    "tiyanawada",
+                    "tiyenawada");
+        }
+
         private static bool IsActiveNodeQuery(string normalized)
         {
             return IsNodeOrDeviceQuery(normalized) &&
-                !ContainsAny(normalized, "not working", "down", "failed", "failure", "failture", "fault", "offline", "unreachable") &&
+                !ContainsAny(normalized, "not working", "wada nathi", "weda nathi", "wada nethi", "weda nethi", "down", "failed", "failure", "failture", "fault", "offline", "unreachable") &&
                 ContainsAny(normalized,
                     "active",
                     "reachable",
@@ -1503,6 +1938,8 @@ Be concise and technical.";
                     "online",
                     "healthy",
                     "working",
+                    "wada karana",
+                    "weda karana",
                     "running",
                     "available");
         }
@@ -1521,8 +1958,51 @@ Be concise and technical.";
                     "faulty",
                     "unreachable",
                     "offline",
-                    "not working") ||
+                    "not working",
+                    "wada nathi",
+                    "weda nathi",
+                    "wada nethi",
+                    "weda nethi") ||
                 Regex.IsMatch(normalized, @"\bfail(?:ed|ure|ures|ture|tures)?\b", RegexOptions.IgnoreCase));
+        }
+
+        private static bool PrefersSinglishResponse(string userMessage)
+        {
+            var normalized = userMessage.ToLowerInvariant();
+            return ContainsAny(normalized,
+                "meke",
+                "me system",
+                "me network",
+                "kiyak",
+                "kiyada",
+                "keeyak",
+                "keeyada",
+                "kiek",
+                "kohomada",
+                "kochchara",
+                "kocchara",
+                "thiyanawada",
+                "thiyenawada",
+                "tiyanawada",
+                "tiyenawada",
+                "thiyenne",
+                "tiyenne",
+                "mokakda",
+                "mokadda",
+                "monawada",
+                "karanna",
+                "balanna",
+                "pennanna",
+                "penwanna",
+                "ganana",
+                "wada karana",
+                "weda karana",
+                "wada nathi",
+                "weda nathi",
+                "wada nethi",
+                "weda nethi",
+                "eka",
+                "tika");
         }
 
         private static NodeStatusFilter DetectNodeStatusFilter(string userMessage)
@@ -1540,6 +2020,120 @@ Be concise and technical.";
             }
 
             return NodeStatusFilter.All;
+        }
+
+        private static DeviceType? DetectDeviceType(string userMessage)
+        {
+            var normalized = userMessage.ToLowerInvariant();
+            if (ContainsAny(normalized, "slbn"))
+            {
+                return DeviceType.SLBN;
+            }
+
+            if (ContainsAny(normalized, "cean"))
+            {
+                return DeviceType.CEAN;
+            }
+
+            if (ContainsAny(normalized, "msan"))
+            {
+                return DeviceType.MSAN;
+            }
+
+            if (ContainsAny(normalized, "customer"))
+            {
+                return DeviceType.Customer;
+            }
+
+            return null;
+        }
+
+        private static AlarmQueryFilters ParseAlarmFilters(string userMessage)
+        {
+            return new AlarmQueryFilters(
+                CriticalOnly: ContainsAny(userMessage, "critical"),
+                DeviceType: DetectDeviceType(userMessage),
+                Location: ExtractLocationFromAlarmQuery(userMessage),
+                SinceUtc: ExtractSinceUtc(userMessage));
+        }
+
+        private static string? ExtractLocationFromAlarmQuery(string userMessage)
+        {
+            var match = Regex.Match(
+                userMessage,
+                @"\b(?:in|at|from|near|around)\s+(?<location>[a-z0-9][a-z0-9\s_-]*?)\s*(?:\b(?:from|since|last|today|yesterday|with|where)\b.*)?[?.!]*$",
+                RegexOptions.IgnoreCase);
+
+            if (!match.Success)
+            {
+                return null;
+            }
+
+            var location = CleanupExtractedValue(match.Groups["location"].Value);
+            return string.IsNullOrWhiteSpace(location) ? null : location;
+        }
+
+        private static DateTime? ExtractSinceUtc(string userMessage)
+        {
+            var normalized = userMessage.ToLowerInvariant();
+            var hoursMatch = Regex.Match(normalized, @"last\s+(?<value>\d+)\s*(?:hour|hours|hr|hrs)");
+            if (hoursMatch.Success && int.TryParse(hoursMatch.Groups["value"].Value, out var hours))
+            {
+                return DateTime.UtcNow.AddHours(-Math.Clamp(hours, 1, 24 * 365));
+            }
+
+            var daysMatch = Regex.Match(normalized, @"last\s+(?<value>\d+)\s*(?:day|days)");
+            if (daysMatch.Success && int.TryParse(daysMatch.Groups["value"].Value, out var days))
+            {
+                return DateTime.UtcNow.AddDays(-Math.Clamp(days, 1, 365));
+            }
+
+            if (ContainsAny(normalized, "last 24 hours", "past 24 hours"))
+            {
+                return DateTime.UtcNow.AddHours(-24);
+            }
+
+            if (ContainsAny(normalized, "today"))
+            {
+                return DateTime.UtcNow.Date;
+            }
+
+            if (ContainsAny(normalized, "this week"))
+            {
+                return DateTime.UtcNow.AddDays(-7);
+            }
+
+            return null;
+        }
+
+        private static int ExtractTimeWindow(string userMessage, int defaultDays)
+        {
+            var sinceUtc = ExtractSinceUtc(userMessage);
+            if (!sinceUtc.HasValue)
+            {
+                return defaultDays;
+            }
+
+            return Math.Max(1, (int)Math.Ceiling((DateTime.UtcNow - sinceUtc.Value).TotalDays));
+        }
+
+        private static string? ExtractAlarmType(string userMessage)
+        {
+            var knownTypes = new[]
+            {
+                "NODE_DOWN",
+                "NODE_UNREACHABLE",
+                "LINK_DOWN",
+                "LINK_NODE_DOWN",
+                "AC_ALARM",
+                "BL_ALARM",
+                "POWER_DOWN",
+                "BATTERY_DOWN",
+                "BATTERY_LOW"
+            };
+
+            var normalized = userMessage.ToUpperInvariant().Replace('-', '_').Replace(' ', '_');
+            return knownTypes.FirstOrDefault(type => normalized.Contains(type, StringComparison.OrdinalIgnoreCase));
         }
 
         private static bool WantsList(string userMessage)
@@ -1828,9 +2422,10 @@ Be concise and technical.";
 
         private static string BuildAlarmSnapshotResponse(AlarmSnapshot snapshot, string alarmType)
         {
+            var isCriticalScope = alarmType.Contains("critical alarms", StringComparison.OrdinalIgnoreCase);
             if (snapshot.TotalCount == 0)
             {
-                return alarmType == "critical alarms"
+                return isCriticalScope
                     ? "There are no active alarms on critical-priority devices right now."
                     : "There are no active alarms right now.";
             }
@@ -1838,7 +2433,7 @@ Be concise and technical.";
             var builder = new StringBuilder();
             var verb = snapshot.TotalCount == 1 ? "is" : "are";
             var totalLabel = snapshot.TotalCount == 1 ? "alarm" : "alarms";
-            var scope = alarmType == "critical alarms" ? " on critical-priority devices" : string.Empty;
+            var scope = isCriticalScope ? " on critical-priority devices" : string.Empty;
 
             builder.AppendLine($"There {verb} {snapshot.TotalCount} active {totalLabel}{scope}.");
             builder.AppendLine($"Showing the latest {snapshot.Alarms.Count}:");
@@ -2012,6 +2607,110 @@ Be concise and technical.";
             return builder.ToString().TrimEnd();
         }
 
+        private static string BuildTroubleshootingGuideResponse(string alarmType)
+        {
+            var normalized = alarmType.Trim().ToUpperInvariant().Replace('-', '_').Replace(' ', '_');
+            var guide = normalized switch
+            {
+                "AC_ALARM" or "POWER_DOWN" or "POWER_FAILURE" => (
+                    Severity: "High",
+                    Cause: "AC mains failure, power feed issue, or site power outage.",
+                    Action: "Check site power/rectifier status, confirm backup battery state, and verify whether upstream devices are also affected."),
+                "BL_ALARM" or "BATTERY_DOWN" or "BATTERY_LOW" => (
+                    Severity: "High",
+                    Cause: "Battery backup is low, disconnected, or not charging after power loss.",
+                    Action: "Check battery voltage/charger, dispatch field power support if runtime is low, and monitor AC restoration."),
+                "NODE_UNREACHABLE" => (
+                    Severity: "Medium",
+                    Cause: "Management path loss, upstream parent issue, IP reachability failure, or device isolation.",
+                    Action: "Ping the device IP, check parent link/root cause, verify latest heartbeat, and confirm whether nearby nodes are also unreachable."),
+                "LINK_DOWN" or "LINK_NODE_DOWN" => (
+                    Severity: "High",
+                    Cause: "Transport/link failure, parent device outage, fiber issue, or interface down.",
+                    Action: "Check parent-child link status, interface alarms, upstream parent health, and impacted downstream nodes."),
+                "NODE_DOWN" => (
+                    Severity: "Critical",
+                    Cause: "Device outage, power failure, upstream link loss, or missed heartbeat threshold.",
+                    Action: "Check power, link, parent device, and latest heartbeat; then review root cause and impacted devices."),
+                _ => (
+                    Severity: "Medium",
+                    Cause: "Unknown or custom alarm type; likely device, power, link, or heartbeat related.",
+                    Action: "Check device status, alarm history, parent link, latest heartbeat, and any correlated root cause.")
+            };
+
+            return $"Troubleshooting guide for {normalized}: Severity {guide.Severity}. Possible cause: {guide.Cause} First action: {guide.Action}";
+        }
+
+        private static string BuildIncidentSummaryResponse(
+            AlarmDetail alarm,
+            RootCauseSummary? rootCause,
+            IReadOnlyList<ImpactedDeviceSummary> impactedDevices)
+        {
+            var builder = new StringBuilder();
+            builder.AppendLine($"Incident summary for alarm {alarm.AlarmId}:");
+            builder.AppendLine($"- Alarm: {alarm.AlarmType} on {alarm.DeviceName} (Device {alarm.DeviceId})");
+            builder.AppendLine($"- Raised: {FormatUtc(alarm.RaisedTime)} | Status: {(alarm.IsActive ? "Active" : "Cleared")} | Priority: {alarm.PriorityLevel}");
+            builder.AppendLine($"- Area: {alarm.LeaName}, {alarm.ProvinceName}, {alarm.RegionName}");
+            builder.AppendLine(rootCause == null
+                ? "- Root cause: Not recorded yet"
+                : $"- Root cause: {rootCause.RootCauseType} on {rootCause.RootCauseDeviceName} (Device {rootCause.RootCauseDeviceId})");
+            builder.AppendLine($"- Impacted devices: {impactedDevices.Count}");
+
+            foreach (var impactedDevice in impactedDevices.Take(3))
+            {
+                builder.AppendLine($"  {impactedDevice.DeviceName} | {impactedDevice.DeviceType} | {impactedDevice.Status}");
+            }
+
+            builder.AppendLine($"- Suggested action: {GetFirstAction(alarm.AlarmType)}");
+            return builder.ToString().TrimEnd();
+        }
+
+        private static string BuildTicketDraftResponse(AlarmDetail alarm)
+        {
+            return
+                $"Ticket draft ready for alarm {alarm.AlarmId}. Summary: {alarm.AlarmType} on {alarm.DeviceName} ({alarm.DeviceType}), priority {alarm.PriorityLevel}, raised {FormatUtc(alarm.RaisedTime)}, area {alarm.LeaName}. Suggested assignment: NOC/field team for {alarm.DeviceType}. I did not create a database ticket because this system has no ticket table yet; please confirm in the ticket module before escalation.";
+        }
+
+        private static string GetFirstAction(string alarmType)
+        {
+            var normalized = alarmType.Trim().ToUpperInvariant().Replace('-', '_').Replace(' ', '_');
+            return normalized switch
+            {
+                "NODE_DOWN" => "Check power, link, parent device, and heartbeat before dispatch.",
+                "NODE_UNREACHABLE" => "Verify ping/management reachability, parent link, and latest heartbeat.",
+                "LINK_DOWN" or "LINK_NODE_DOWN" => "Check interface/link status and upstream parent health.",
+                "AC_ALARM" or "POWER_DOWN" or "POWER_FAILURE" => "Check mains power, rectifier, and battery backup.",
+                "BL_ALARM" or "BATTERY_LOW" or "BATTERY_DOWN" => "Check battery voltage, charger, and remaining backup runtime.",
+                _ => "Review device status, parent link, heartbeat, and correlated root cause."
+            };
+        }
+
+        private static string BuildAlarmFilterLabel(AlarmQueryFilters filters, string baseLabel)
+        {
+            var parts = new List<string> { baseLabel };
+            if (filters.DeviceType.HasValue)
+            {
+                parts.Add(filters.DeviceType.Value.ToString());
+            }
+
+            if (!string.IsNullOrWhiteSpace(filters.Location))
+            {
+                parts.Add($"in {CleanupExtractedValue(filters.Location)}");
+            }
+
+            if (filters.SinceUtc.HasValue)
+            {
+                parts.Add($"since {FormatUtc(filters.SinceUtc.Value)}");
+            }
+
+            return string.Join(" ", parts);
+        }
+
+        private static string BuildDeviceFilterLabel(DeviceType? deviceType, string baseLabel)
+        {
+            return deviceType.HasValue ? $"{deviceType.Value} {baseLabel}" : baseLabel;
+        }
+
         private static string FormatUtc(DateTime value)
         {
             return $"{value:yyyy-MM-dd HH:mm:ss} UTC";
@@ -2096,6 +2795,27 @@ Be concise and technical.";
             int TotalCount,
             IReadOnlyList<AlarmSummary> Alarms);
 
+        private sealed record AlarmQueryFilters(
+            bool CriticalOnly = false,
+            DeviceType? DeviceType = null,
+            string? Location = null,
+            DateTime? SinceUtc = null);
+
+        private sealed record AlarmDetail(
+            int AlarmId,
+            int DeviceId,
+            string DeviceName,
+            string DeviceType,
+            DeviceStatus DeviceStatus,
+            PriorityLevel PriorityLevel,
+            string AlarmType,
+            DateTime RaisedTime,
+            DateTime? ClearedTime,
+            bool IsActive,
+            string LeaName,
+            string ProvinceName,
+            string RegionName);
+
         private sealed class OllamaResponse
         {
             public string Response { get; set; } = string.Empty;
@@ -2114,6 +2834,11 @@ Be concise and technical.";
             CriticalAlarms,
             RootCause,
             ImpactedDevices,
+            TroubleshootingGuide,
+            IncidentSummary,
+            TrendInsights,
+            TicketEscalation,
+            KnowledgeBase,
             DatabaseLookup
         }
 

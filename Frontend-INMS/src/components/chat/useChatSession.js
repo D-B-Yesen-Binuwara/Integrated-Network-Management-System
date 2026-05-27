@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import ChatService from '../../services/ChatService';
 
 const STORAGE_KEY = 'inms-chat-history';
+const CRITICAL_ALERT_STORAGE_KEY = 'inms-last-critical-alert';
 const MAX_HISTORY_MESSAGES = 50;
 const MIN_BOT_RESPONSE_DELAY_MS = 2000;
 
@@ -12,7 +13,10 @@ export const suggestedPrompts = [
   'Show active alarms',
   'Show critical alarms',
   'What is the status of SLBN-Colombo-01?',
-  'Show impacted devices for alarm 1'
+  'Show impacted devices for alarm 1',
+  'Troubleshooting guide for NODE_DOWN',
+  'Show critical alarms in Colombo',
+  'Top recurring failed devices'
 ];
 
 function normalizeMessages(messages) {
@@ -118,6 +122,34 @@ export default function useChatSession() {
     setMessages([]);
   };
 
+  const checkForCriticalAlert = useCallback(async () => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    try {
+      const response = await ChatService.sendMessage('Show critical alarms');
+      const criticalSummary = response?.message?.trim();
+      if (!criticalSummary || /no active alarms on critical-priority devices/i.test(criticalSummary)) {
+        return;
+      }
+
+      const alertKey = criticalSummary.slice(0, 220);
+      if (window.localStorage.getItem(CRITICAL_ALERT_STORAGE_KEY) === alertKey) {
+        return;
+      }
+
+      window.localStorage.setItem(CRITICAL_ALERT_STORAGE_KEY, alertKey);
+      const alertMessage = {
+        type: 'bot',
+        content: `New critical alarm detected. Want a summary?\n\n${criticalSummary}`
+      };
+      setMessages((currentMessages) => normalizeMessages([...currentMessages, alertMessage]));
+    } catch {
+      // Keep proactive checks silent so normal chat remains usable.
+    }
+  }, []);
+
   const reloadHistory = useCallback(() => {
     setMessages(loadStoredMessages());
   }, []);
@@ -129,6 +161,7 @@ export default function useChatSession() {
     setInputMessage,
     sendMessage,
     clearHistory,
+    checkForCriticalAlert,
     reloadHistory,
     suggestedPrompts
   };
