@@ -21,7 +21,13 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"), sqlOptions =>
+    {
+        sqlOptions.CommandTimeout(60);
+        sqlOptions.EnableRetryOnFailure(3, TimeSpan.FromSeconds(5), null);
+    })
+    .EnableSensitiveDataLogging(builder.Environment.IsDevelopment())
+    .EnableDetailedErrors(builder.Environment.IsDevelopment()));
 
 builder.Services.AddScoped<IDeviceRepository, DeviceRepository>();
 builder.Services.AddScoped<IDeviceService, DeviceService>();
@@ -41,8 +47,7 @@ builder.Services.AddScoped<IRoleRepository, RoleRepository>();
 builder.Services.AddScoped<IRoleService, RoleService>();
 builder.Services.AddScoped<IUserAreaAssignmentRepository, UserAreaAssignmentRepository>();
 builder.Services.AddScoped<UserAreaAssignmentService>();
-builder.Services.AddScoped<IImpactAnalysisService, ImpactAnalysisService>();
-
+builder.Services.AddScoped<IImpactAnalysisService, EnhancedImpactAnalysisService>();
 
 builder.Services.AddScoped<IAlarmRepository, AlarmRepository>();
 builder.Services.AddScoped<IAlarmService, AlarmService>();
@@ -56,26 +61,48 @@ builder.Services.AddScoped<ISimulationEventService, SimulationEventService>();
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<IChatService, ChatService>();
 
+// DeviceVendor Services
+builder.Services.AddScoped<IDeviceVendorRepository, DeviceVendorRepository>();
+builder.Services.AddScoped<IDeviceVendorService, DeviceVendorService>();
+
+// Vendor Services
+builder.Services.AddScoped<IVendorRepository, VendorRepository>();
+builder.Services.AddScoped<IVendorService, VendorService>();
+
+// Vendor Statistics Services
+builder.Services.AddScoped<IVendorStatsService, VendorStatsService>();
+
 // Background Services
 builder.Services.AddHostedService<HeartbeatSchedulerService>();
 builder.Services.AddHostedService<HeartbeatFailureDetectionService>();
 
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+    });
+
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowAll", builder =>
+    options.AddPolicy("AllowFrontend", policy =>
     {
-        builder.AllowAnyOrigin()
-               .AllowAnyMethod()
-               .AllowAnyHeader();
+        policy.WithOrigins("http://localhost:5173", "http://127.0.0.1:5173")
+              .AllowAnyHeader()
+              .AllowAnyMethod();
+    });
+
+    options.AddPolicy("AllowAll", policy =>
+    {
+        policy.AllowAnyOrigin()
+              .AllowAnyMethod()
+              .AllowAnyHeader();
     });
 });
-
-builder.Services.AddControllers();
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-var app = builder.Build();  
+var app = builder.Build();
 
 // Create the database and schema automatically for first-time container startup.
 using (var scope = app.Services.CreateScope())
@@ -92,11 +119,9 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseCors("AllowAll");
-
+app.UseCors(app.Environment.IsDevelopment() ? "AllowAll" : "AllowFrontend");
 app.UseHttpsRedirection();
 app.MapControllers();
-
 
 app.Run();
 
@@ -126,4 +151,3 @@ static Task EnsureCompatibilitySchemaAsync(AppDbContext dbContext)
 
     return dbContext.Database.ExecuteSqlRawAsync(sql);
 }
-

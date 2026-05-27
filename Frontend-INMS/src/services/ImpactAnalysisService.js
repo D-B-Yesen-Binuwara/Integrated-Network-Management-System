@@ -1,19 +1,31 @@
 import apiClient from './apiClient';
 
 class ImpactAnalysisService {
-  static async analyze(deviceId) {
-    const response = await apiClient.post(`/impact-analysis/analyze/${deviceId}`);
+  static async getImpactResult(deviceId) {
+    const response = await apiClient.get(`/impact-analysis/analyze/${deviceId}`);
     return response.data;
+  }
+
+  static async analyzeDeviceFailure(deviceId) {
+    const response = await apiClient.post(`/impact-analysis/simulate-failure/${deviceId}`);
+    return response.data;
+  }
+
+  static async clearDeviceImpact(deviceId) {
+    const response = await apiClient.post(`/impact-analysis/clear-failure/${deviceId}`);
+    return response.data;
+  }
+
+  static async analyze(deviceId) {
+    return this.analyzeDeviceFailure(deviceId);
   }
 
   static async getResult(deviceId) {
-    const response = await apiClient.get(`/impact-analysis/result/${deviceId}`);
-    return response.data;
+    return this.getImpactResult(deviceId);
   }
 
   static async clear(deviceId) {
-    const response = await apiClient.post(`/impact-analysis/clear/${deviceId}`);
-    return response.data;
+    return this.clearDeviceImpact(deviceId);
   }
 }
 

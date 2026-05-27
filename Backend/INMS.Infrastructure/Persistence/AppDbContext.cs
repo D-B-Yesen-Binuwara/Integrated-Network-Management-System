@@ -10,6 +10,7 @@ public class AppDbContext : DbContext
 
     public DbSet<Device> Devices { get; set; }
     public DbSet<DeviceLink> DeviceLinks { get; set; }
+    public DbSet<DeviceVendor> DeviceVendors { get; set; }
     public DbSet<Region> Regions { get; set; }
     public DbSet<Province> Provinces { get; set; }
     public DbSet<LEA> LEAs { get; set; }
@@ -25,10 +26,12 @@ public class AppDbContext : DbContext
     public DbSet<NetworkNode> NetworkNodes { get; set; }
     public DbSet<Customer> Customers { get; set; }
     public DbSet<FailureEvent> FailureEvents { get; set; }
+    public DbSet<Vendor> Vendors { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Device>().ToTable("Device");
+        modelBuilder.Entity<DeviceVendor>().ToTable("DeviceVendor");
         modelBuilder.Entity<Region>().ToTable("Region");
         modelBuilder.Entity<Province>().ToTable("Province");
         modelBuilder.Entity<LEA>().ToTable("LEA");
@@ -39,6 +42,13 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<User>().ToTable("User");
         modelBuilder.Entity<Role>().ToTable("Role");
         modelBuilder.Entity<UserAreaAssignment>().ToTable("UserAreaAssignment");
+        modelBuilder.Entity<Heartbeat>().ToTable("Heartbeat");
+        modelBuilder.Entity<SimulationEvent>().ToTable("SimulationEvent");
+        modelBuilder.Entity<AccountRequest>().ToTable("AccountRequest");
+        modelBuilder.Entity<NetworkNode>().ToTable("NetworkNode");
+        modelBuilder.Entity<Customer>().ToTable("Customer");
+        modelBuilder.Entity<FailureEvent>().ToTable("FailureEvent");
+        modelBuilder.Entity<Vendor>().ToTable("Vendor");
 
         modelBuilder.Entity<Device>()
             .Property(d => d.PriorityLevel)
@@ -51,8 +61,6 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<Device>()
             .Property(d => d.Status)
             .HasConversion<string>();
-
-        base.OnModelCreating(modelBuilder);
 
         modelBuilder.Entity<Device>()
             .HasOne(d => d.AssignedUser)
@@ -75,11 +83,29 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<Role>()
             .Property(r => r.RoleName)
             .HasColumnName("Name");
-        modelBuilder.Entity<Heartbeat>().ToTable("Heartbeat");
-        modelBuilder.Entity<SimulationEvent>().ToTable("SimulationEvent");
-        modelBuilder.Entity<AccountRequest>().ToTable("AccountRequest");
-        modelBuilder.Entity<NetworkNode>().ToTable("NetworkNode");
-        modelBuilder.Entity<Customer>().ToTable("Customer");
-        modelBuilder.Entity<FailureEvent>().ToTable("FailureEvent");
+
+        modelBuilder.Entity<Vendor>()
+            .Property(v => v.DeviceType)
+            .HasConversion<string>();
+
+        modelBuilder.Entity<DeviceVendor>()
+            .HasOne(dv => dv.Device)
+            .WithMany(d => d.DeviceVendors)
+            .HasForeignKey(dv => dv.DeviceId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<DeviceVendor>()
+            .HasOne(dv => dv.Vendor)
+            .WithMany(v => v.DeviceVendors)
+            .HasForeignKey(dv => dv.VendorId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<DeviceVendor>()
+            .HasOne(dv => dv.AssignedByUser)
+            .WithMany()
+            .HasForeignKey(dv => dv.AssignedBy)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        base.OnModelCreating(modelBuilder);
     }
 }

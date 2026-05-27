@@ -57,10 +57,72 @@ function getNodeProvince(node) {
   return node.provinceName ?? node.province ?? "-";
 }
 
+function getNodeLea(node) {
+  return node.leaName ?? node.lea ?? "-";
+}
+
+function getNodeIp(node) {
+  return node.ip ?? node.IP ?? "-";
+}
+
 function getNodeLocation(node) {
   if (node.location) return node.location;
   if (node.latitude != null && node.longitude != null) return `${node.latitude}, ${node.longitude}`;
   return "-";
+}
+
+function buildSummary(nodes) {
+  return nodes.reduce((summary, node) => {
+    const type = getNodeType(node);
+    if (type === "SLBN") summary.slbnAffected += 1;
+    if (type === "CEAN") summary.ceanAffected += 1;
+    if (type === "MSAN") summary.msanAffected += 1;
+    if (type === "Customer") summary.customerAffected += 1;
+    summary.totalAffected += 1;
+    return summary;
+  }, { ...EMPTY_SUMMARY });
+}
+
+function normalizeSummary(summary, nodes) {
+  if (!summary) {
+    return buildSummary(nodes);
+  }
+
+  return {
+    slbnAffected: Number(summary.slbnAffected ?? 0),
+    ceanAffected: Number(summary.ceanAffected ?? 0),
+    msanAffected: Number(summary.msanAffected ?? 0),
+    customerAffected: Number(summary.customerAffected ?? 0),
+    totalAffected: Number(summary.totalAffected ?? nodes.length)
+  };
+}
+
+function buildSegments(nodes) {
+  const bySegment = new Map();
+
+  nodes.forEach((node) => {
+    const segment = {
+      regionName: getNodeRegion(node),
+      provinceName: getNodeProvince(node),
+      leaName: getNodeLea(node)
+    };
+    const key = `${segment.regionName}|${segment.provinceName}|${segment.leaName}`;
+    const existing = bySegment.get(key) ?? { ...segment, affectedCount: 0 };
+    existing.affectedCount += 1;
+    bySegment.set(key, existing);
+  });
+
+  return Array.from(bySegment.values())
+    .sort((a, b) =>
+      b.affectedCount - a.affectedCount ||
+      a.regionName.localeCompare(b.regionName) ||
+      a.provinceName.localeCompare(b.provinceName) ||
+      a.leaName.localeCompare(b.leaName)
+    );
+}
+
+function getRootDeviceName(rootCause) {
+  return rootCause.rootDevice?.deviceName ?? rootCause.rootCauseDeviceId ?? "-";
 }
 
 export default function ImpactAnalysis() {
@@ -116,23 +178,33 @@ export default function ImpactAnalysis() {
     if (!deviceId || devices.length === 0) return;
 
     const matchedDevice = devices.find((device) => Number(device.deviceId) === deviceId);
-    if (!matchedDevice) return;
+    if (matchedDevice) {
+      setNodeSearch(matchedDevice.deviceName);
+    }
 
-    setNodeSearch(matchedDevice.deviceName);
     setSelectedDeviceId(deviceId);
     void loadResult(deviceId);
   }, [devices, loadResult, searchParams]);
 
-  const impactedNodes = useMemo(() => asArray(analysis?.impactedDevices), [analysis]);
-  const segments = useMemo(() => asArray(analysis?.isolatedSegments), [analysis]);
-  const summary = analysis?.summary ?? EMPTY_SUMMARY;
-  const sourceDevice = analysis?.sourceDevice ?? null;
+  const impactedNodes = useMemo(
+    () => asArray(analysis?.impactedDevices ?? analysis?.affectedDevices),
+    [analysis]
+  );
+  const rootCauses = useMemo(() => asArray(analysis?.rootCauses), [analysis]);
+  const segments = useMemo(
+    () => asArray(analysis?.isolatedSegments).length > 0
+      ? asArray(analysis?.isolatedSegments)
+      : buildSegments(impactedNodes),
+    [analysis, impactedNodes]
+  );
+  const summary = useMemo(() => normalizeSummary(analysis?.summary, impactedNodes), [analysis, impactedNodes]);
+  const sourceDevice = analysis?.sourceDevice ?? analysis?.analyzedDevice ?? analysis?.device ?? null;
   const affectedCount = Number(summary.totalAffected ?? impactedNodes.length);
 
-  const filtered = impactedNodes.filter((node) => {
+  const filtered = useMemo(() => impactedNodes.filter((node) => {
     const term = filters.search.trim().toLowerCase();
     const name = String(node.deviceName ?? node.name ?? "").toLowerCase();
-    const ip = String(node.ip ?? "").toLowerCase();
+    const ip = String(getNodeIp(node)).toLowerCase();
     const region = getNodeRegion(node);
     const type = getNodeType(node);
     const status = normalizeStatus(node.status);
@@ -142,7 +214,7 @@ export default function ImpactAnalysis() {
     if (filters.type && type !== filters.type) return false;
     if (filters.status && status !== filters.status) return false;
     return true;
-  });
+  }), [filters, impactedNodes]);
 
   const handleRunAnalysis = async (event) => {
     event.preventDefault();
@@ -150,6 +222,7 @@ export default function ImpactAnalysis() {
     const device = findDevice(devices, nodeSearch);
     if (!device) {
       setAnalysis(null);
+      setSelectedDeviceId(null);
       setError("Device eka hoyaganna bari una. Node name/IP eka hariyata enter karanna.");
       return;
     }
@@ -196,6 +269,22 @@ export default function ImpactAnalysis() {
         </p>
       </div>
 
+      {rootCauses.length > 0 && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <h2 className="text-blue-900 font-semibold text-sm mb-2">Root Cause Identified</h2>
+          <div className="space-y-1">
+            {rootCauses.map((rootCause) => (
+              <p key={rootCause.rootCauseId} className="text-blue-800 text-sm">
+                <span className="font-semibold">{getRootDeviceName(rootCause)}</span>
+                {" | "}
+                {rootCause.rootCauseType ?? "NODE_FAILURE"}
+                {rootCause.alarmType ? ` | ${rootCause.alarmType}` : ""}
+              </p>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-3">
         <label className="text-sm font-medium text-gray-600">
           Select Source Node
@@ -205,8 +294,11 @@ export default function ImpactAnalysis() {
             type="text"
             list="impact-node-options"
             value={nodeSearch}
-            onChange={(e) => setNodeSearch(e.target.value)}
-            placeholder={isLoadingDevices ? "Loading nodes..." : "Search node by name or IP..."}
+            onChange={(e) => {
+              setNodeSearch(e.target.value);
+              setSelectedDeviceId(null);
+            }}
+            placeholder={isLoadingDevices ? "Loading nodes..." : "Search node by name, ID, or IP..."}
             className="border border-gray-300 rounded-lg px-3 py-2 text-sm flex-1 focus:outline-none focus:ring-2 focus:ring-blue-400"
             disabled={isLoadingDevices || isLoadingAnalysis}
           />
@@ -242,7 +334,7 @@ export default function ImpactAnalysis() {
           <div className="text-xs text-gray-500">
             Source: <span className="font-medium text-gray-700">{sourceDevice.deviceName}</span>
             {" | "}
-            {sourceDevice.ip}
+            {getNodeIp(sourceDevice)}
             {" | "}
             {getNodeType(sourceDevice)}
             {" | "}
@@ -313,14 +405,14 @@ export default function ImpactAnalysis() {
               {filtered.length === 0 ? (
                 <tr>
                   <td colSpan={10} className="text-center text-gray-400 py-10 text-sm">
-                    No affected nodes found.
+                    {impactedNodes.length === 0 ? "No affected nodes found." : "No nodes match the current filters."}
                   </td>
                 </tr>
               ) : (
                 filtered.map((node) => (
                   <tr key={node.deviceId ?? node.deviceName} className="border-b border-gray-100 hover:bg-gray-50 transition">
                     <td className="py-2.5 px-3 font-medium text-gray-800">{node.deviceName}</td>
-                    <td className="py-2.5 px-3 text-gray-600 font-mono text-xs">{node.ip}</td>
+                    <td className="py-2.5 px-3 text-gray-600 font-mono text-xs">{getNodeIp(node)}</td>
                     <td className="py-2.5 px-3">
                       <span className={`${getTypeBadgeClass(getNodeType(node))} text-xs font-semibold px-2 py-0.5 rounded`}>
                         {getNodeType(node)}

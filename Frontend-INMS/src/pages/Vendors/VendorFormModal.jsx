@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 
-const NODE_TYPE_OPTIONS = ['MSAN', 'CEA', 'SLBN'];
+const DEVICE_TYPE_OPTIONS = ['SLBN', 'CEAN', 'MSAN', 'Customer'];
 
 const EMPTY_FORM = {
   name: '',
-  supportedNodeTypes: [],
+  brand: '',
+  deviceType: '',
   description: ''
 };
 
@@ -17,30 +18,16 @@ export default function VendorFormModal({ mode, initialVendor, onClose, onSubmit
   useEffect(() => {
     setForm({
       name: initialVendor?.name ?? '',
-      supportedNodeTypes: Array.isArray(initialVendor?.supportedNodeTypes)
-        ? initialVendor.supportedNodeTypes
-        : [],
+      brand: initialVendor?.brand ?? '',
+      deviceType: initialVendor?.deviceType ?? '',
       description: initialVendor?.description ?? ''
     });
     setError('');
   }, [initialVendor]);
 
   const isValid = useMemo(() => {
-    return form.name.trim() !== '' && form.supportedNodeTypes.length > 0;
+    return form.name.trim() !== '' && form.brand.trim() !== '' && form.deviceType !== '';
   }, [form]);
-
-  const handleToggleType = (type) => {
-    setForm((previous) => {
-      const exists = previous.supportedNodeTypes.includes(type);
-      return {
-        ...previous,
-        supportedNodeTypes: exists
-          ? previous.supportedNodeTypes.filter((item) => item !== type)
-          : [...previous.supportedNodeTypes, type]
-      };
-    });
-    setError('');
-  };
 
   const handleSubmit = async () => {
     if (!isValid || submitting) {
@@ -48,12 +35,16 @@ export default function VendorFormModal({ mode, initialVendor, onClose, onSubmit
     }
 
     try {
-      await onSubmit({
+      const payload = {
         name: form.name.trim(),
-        supportedNodeTypes: [...form.supportedNodeTypes],
+        brand: form.brand.trim(),
+        deviceType: form.deviceType,
         description: form.description.trim() || undefined
-      });
+      };
+      console.log('[VendorFormModal] submitting payload:', payload);
+      await onSubmit(payload);
     } catch (submitError) {
+      console.error('[VendorFormModal] submit error:', submitError?.response?.data ?? submitError?.message);
       setError(submitError?.message ?? 'Failed to save vendor.');
     }
   };
@@ -90,23 +81,29 @@ export default function VendorFormModal({ mode, initialVendor, onClose, onSubmit
             />
           </div>
 
-          <div className="space-y-2">
-            <p className="text-sm font-medium text-slate-700">Supported Node Types *</p>
-            <div className="flex flex-wrap gap-2">
-              {NODE_TYPE_OPTIONS.map((type) => {
-                const active = form.supportedNodeTypes.includes(type);
-                return (
-                  <button
-                    key={type}
-                    type="button"
-                    onClick={() => handleToggleType(type)}
-                    className={`px-3 py-1.5 text-sm rounded-full border transition ${active ? 'bg-indigo-100 text-indigo-700 border-indigo-300' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'}`}
-                  >
-                    {type}
-                  </button>
-                );
-              })}
-            </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-slate-700">Brand *</label>
+            <input
+              type="text"
+              className={inputClass}
+              value={form.brand}
+              onChange={(event) => setForm((previous) => ({ ...previous, brand: event.target.value }))}
+              placeholder="Enter brand name"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-slate-700">Device Type *</label>
+            <select
+              className={inputClass}
+              value={form.deviceType}
+              onChange={(event) => setForm((previous) => ({ ...previous, deviceType: event.target.value }))}
+            >
+              <option value="">Select device type</option>
+              {DEVICE_TYPE_OPTIONS.map((type) => (
+                <option key={type} value={type}>{type}</option>
+              ))}
+            </select>
           </div>
 
           <div className="space-y-1.5">

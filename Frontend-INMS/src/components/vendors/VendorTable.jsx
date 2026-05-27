@@ -6,7 +6,8 @@ export default function VendorTable({ vendors, onEdit, onDelete }) {
           <thead>
             <tr className="border-b border-slate-200 text-slate-500 uppercase text-xs">
               <th className="py-2.5 px-3 font-semibold">Vendor Name</th>
-              <th className="py-2.5 px-3 font-semibold">Supported Node Types</th>
+              <th className="py-2.5 px-3 font-semibold">Brand</th>
+              <th className="py-2.5 px-3 font-semibold">Device Type</th>
               <th className="py-2.5 px-3 font-semibold">Assigned Nodes</th>
               <th className="py-2.5 px-3 font-semibold">Description</th>
               <th className="py-2.5 px-3 font-semibold">Actions</th>
@@ -19,23 +20,14 @@ export default function VendorTable({ vendors, onEdit, onDelete }) {
               </tr>
             ) : (
               vendors.map((vendor) => {
-                const supportedNodeTypes = Array.isArray(vendor.supportedNodeTypes) ? vendor.supportedNodeTypes : [];
                 return (
                   <tr key={vendor.id} className="border-b border-slate-100 hover:bg-slate-50 transition">
                     <td className="py-2.5 px-3 font-medium text-slate-800">{vendor.name}</td>
+                    <td className="py-2.5 px-3 text-slate-700">{vendor.brand || '-'}</td>
                     <td className="py-2.5 px-3">
-                      <div className="flex flex-wrap gap-1.5">
-                        {supportedNodeTypes.length === 0 ? (
-                          <span className="text-slate-400">-</span>
-                        ) : supportedNodeTypes.map((type) => (
-                          <span
-                            key={`${vendor.id}-${type}`}
-                            className="text-xs font-semibold px-2 py-0.5 rounded bg-sky-100 text-sky-800 border border-sky-200"
-                          >
-                            {type}
-                          </span>
-                        ))}
-                      </div>
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded bg-sky-100 text-sky-800 border border-sky-200">
+                        {vendor.deviceType || '-'}
+                      </span>
                     </td>
                     <td className="py-2.5 px-3 text-slate-700">{vendor.assignedNodeCount ?? 0}</td>
                     <td className="py-2.5 px-3 text-slate-700">{vendor.description || '-'}</td>

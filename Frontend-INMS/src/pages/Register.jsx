@@ -9,10 +9,10 @@ function Register() {
   const navigate = useNavigate();
   const [role, setRole] = useState("");
 
-  if (role === "admin") return <AdminRegister />;
-  if (role === "region") return <RegionRegister />;
-  if (role === "province") return <ProvinceRegister />;
-  if (role === "lea") return <LeaRegister />;
+  if (role === "admin") return <AdminRegister onBack={() => setRole("")} />;
+  if (role === "region") return <RegionRegister onBack={() => setRole("")} />;
+  if (role === "province") return <ProvinceRegister onBack={() => setRole("")} />;
+  if (role === "lea") return <LeaRegister onBack={() => setRole("")} />;
 
   const roles = [
     { id: "admin", label: "Admin", description: "System Administrator" },
@@ -24,14 +24,6 @@ function Register() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <img
-            src="/sltmobitel-logo.png"
-            alt="SLTMobitel"
-            className="h-16 mx-auto mb-4 object-contain"
-          />
-        </div>
-
         {/* Role Selection Card */}
         <div className="bg-white rounded-2xl shadow-xl p-8 border border-slate-100">
           <h2 className="text-xl font-semibold text-slate-700 mb-6 text-center">

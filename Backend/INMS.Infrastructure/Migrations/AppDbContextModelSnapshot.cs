@@ -22,6 +22,62 @@ namespace INMS.Infrastructure.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("INMS.Domain.Entities.AccountRequest", b =>
+                {
+                    b.Property<int>("RequestId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("RequestId"));
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("FullName")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<int?>("LEAId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("ProvinceId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("RegionId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("RequestedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("RoleId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ServiceId")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.HasKey("RequestId");
+
+                    b.HasIndex("LEAId");
+
+                    b.HasIndex("ProvinceId");
+
+                    b.HasIndex("RegionId");
+
+                    b.HasIndex("RoleId");
+
+                    b.ToTable("AccountRequest", (string)null);
+                });
+
             modelBuilder.Entity("INMS.Domain.Entities.Alarm", b =>
                 {
                     b.Property<int>("AlarmId")
@@ -96,9 +152,14 @@ namespace INMS.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<int?>("VendorId")
+                        .HasColumnType("int");
+
                     b.HasKey("DeviceId");
 
                     b.HasIndex("AssignedUserId");
+
+                    b.HasIndex("VendorId");
 
                     b.ToTable("Device", (string)null);
                 });
@@ -320,6 +381,10 @@ namespace INMS.Infrastructure.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("UserId"));
 
+                    b.Property<string>("Email")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
                     b.Property<string>("FullName")
                         .IsRequired()
                         .HasMaxLength(150)
@@ -331,6 +396,10 @@ namespace INMS.Infrastructure.Migrations
 
                     b.Property<int>("RoleId")
                         .HasColumnType("int");
+
+                    b.Property<string>("ServiceId")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
 
                     b.Property<string>("Username")
                         .IsRequired()
@@ -369,13 +438,87 @@ namespace INMS.Infrastructure.Migrations
                     b.ToTable("UserAreaAssignment", (string)null);
                 });
 
+            modelBuilder.Entity("INMS.Domain.Entities.Vendor", b =>
+                {
+                    b.Property<int>("VendorId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("VendorId"));
+
+                    b.Property<string>("Brand")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<int>("DeviceType")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("VendorId");
+
+                    b.ToTable("Vendors");
+                });
+
+            modelBuilder.Entity("INMS.Domain.Entities.AccountRequest", b =>
+                {
+                    b.HasOne("INMS.Domain.Entities.LEA", "LEA")
+                        .WithMany()
+                        .HasForeignKey("LEAId");
+
+                    b.HasOne("INMS.Domain.Entities.Province", "Province")
+                        .WithMany()
+                        .HasForeignKey("ProvinceId");
+
+                    b.HasOne("INMS.Domain.Entities.Region", "Region")
+                        .WithMany()
+                        .HasForeignKey("RegionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("INMS.Domain.Entities.Role", "Role")
+                        .WithMany()
+                        .HasForeignKey("RoleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("LEA");
+
+                    b.Navigation("Province");
+
+                    b.Navigation("Region");
+
+                    b.Navigation("Role");
+                });
+
             modelBuilder.Entity("INMS.Domain.Entities.Device", b =>
                 {
                     b.HasOne("INMS.Domain.Entities.User", "AssignedUser")
                         .WithMany()
-                        .HasForeignKey("AssignedUserId");
+                        .HasForeignKey("AssignedUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("INMS.Domain.Entities.Vendor", "Vendor")
+                        .WithMany("Devices")
+                        .HasForeignKey("VendorId");
 
                     b.Navigation("AssignedUser");
+
+                    b.Navigation("Vendor");
                 });
 
             modelBuilder.Entity("INMS.Domain.Entities.DeviceLink", b =>
@@ -439,6 +582,11 @@ namespace INMS.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("INMS.Domain.Entities.Vendor", b =>
+                {
+                    b.Navigation("Devices");
                 });
 #pragma warning restore 612, 618
         }

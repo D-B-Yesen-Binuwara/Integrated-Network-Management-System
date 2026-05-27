@@ -21,4 +21,24 @@ public class AccountRequestController : ControllerBase
         await _service.Submit(dto);
         return Ok();
     }
+
+    [HttpGet]
+    public async Task<IActionResult> GetAll()
+    {
+        return Ok(await _service.GetAll());
+    }
+
+    [HttpPatch("{id}/status")]
+    public async Task<IActionResult> UpdateStatus(int id, [FromBody] UpdateAccountRequestStatusDto dto)
+    {
+        var result = dto.Status switch
+        {
+            "APPROVED" => await _service.Approve(id),
+            "REJECTED" => await _service.Reject(id),
+            _ => false
+        };
+
+        if (!result) return BadRequest("Request not found, already processed, or invalid status.");
+        return Ok();
+    }
 }

@@ -1,5 +1,6 @@
 using INMS.Application.Interfaces;
 using INMS.Domain.Enums;
+using Microsoft.EntityFrameworkCore;
 
 namespace INMS.API.BackgroundServices;
 
@@ -7,7 +8,7 @@ public class HeartbeatSchedulerService : BackgroundService
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<HeartbeatSchedulerService> _logger;
-    private const int HeartbeatIntervalSeconds = 10;
+    private const int HeartbeatIntervalSeconds = 30; // Reduced frequency
 
     public HeartbeatSchedulerService(
         IServiceProvider serviceProvider,
@@ -39,27 +40,32 @@ public class HeartbeatSchedulerService : BackgroundService
     private async Task PerformHeartbeatCheck()
     {
         using var scope = _serviceProvider.CreateScope();
-        var deviceService = scope.ServiceProvider.GetRequiredService<IDeviceService>();
+        var context = scope.ServiceProvider.GetRequiredService<INMS.Infrastructure.Persistence.AppDbContext>();
         var heartbeatService = scope.ServiceProvider.GetRequiredService<IHeartbeatService>();
 
-        var devices = await deviceService.GetAllAsync();
+        // Get only active devices that aren't simulated down
+        var activeDevices = await context.Devices
+            .AsNoTracking()
+            .Where(d => !d.IsSimulatedDown)
+            .Select(d => d.DeviceId)
+            .ToListAsync();
+            
         int respondedCount = 0;
 
-        foreach (var device in devices)
+        foreach (var deviceId in activeDevices)
         {
-            if (device.IsSimulatedDown)
+            try
             {
-                _logger.LogDebug($"Device {device.DeviceId} is simulated down - skipping heartbeat");
-                continue;
+                await heartbeatService.RecordHeartbeatAsync(deviceId, "UP");
+                respondedCount++;
+                _logger.LogDebug($"Heartbeat recorded for device {deviceId}");
             }
-
-            // Record heartbeat regardless of current status
-            // This allows automatic recovery detection
-            await heartbeatService.RecordHeartbeatAsync(device.DeviceId, "UP");
-            respondedCount++;
-            _logger.LogDebug($"Heartbeat recorded for device {device.DeviceId}");
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, $"Failed to record heartbeat for device {deviceId}");
+            }
         }
 
-        _logger.LogInformation($"Heartbeat check completed: {respondedCount}/{devices.Count()} devices responded");
+        _logger.LogInformation($"Heartbeat check completed: {respondedCount}/{activeDevices.Count} devices responded");
     }
 }

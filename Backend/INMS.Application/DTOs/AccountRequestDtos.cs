@@ -10,6 +10,8 @@ public record CreateAccountRequestDto(
     int? LEAId
 );
 
+public record UpdateAccountRequestStatusDto(string Status);
+
 public record AccountRequestResponseDto(
     int RequestId,
     string FullName,
