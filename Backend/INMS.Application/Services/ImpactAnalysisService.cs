@@ -23,7 +23,7 @@ public class ImpactAnalysisService : IImpactAnalysisService
         var device = await _context.Devices
             .FirstOrDefaultAsync(d => d.DeviceId == deviceId);
 
-        if (device == null || device.Status != nameof(DeviceStatus.DOWN))
+        if (device == null || device.Status != DeviceStatus.DOWN)
         {
             return;
         }
@@ -38,15 +38,15 @@ public class ImpactAnalysisService : IImpactAnalysisService
 
         var hasDownOrUnreachableParent = parentLinks.Any(link =>
             link.ParentDevice == null ||
-            link.ParentDevice.Status == nameof(DeviceStatus.DOWN) ||
-            link.ParentDevice.Status == nameof(DeviceStatus.IMPACTED));
+            link.ParentDevice.Status == DeviceStatus.DOWN ||
+            link.ParentDevice.Status == DeviceStatus.UNREACHABLE);
 
         var isRootFailure = parentLinks.Count == 0 || !hasDownOrUnreachableParent;
 
         if (!isRootFailure)
         {
             await ClearRootCauseAsync(deviceId);
-            device.Status = nameof(DeviceStatus.IMPACTED);
+            device.Status = DeviceStatus.UNREACHABLE;
             await _context.SaveChangesAsync();
             return;
         }
@@ -77,12 +77,12 @@ public class ImpactAnalysisService : IImpactAnalysisService
             await _context.ImpactedDevices.AddRangeAsync(impactedRows);
 
             var impactedDevices = await _context.Devices
-                .Where(d => impactedDeviceIds.Contains(d.DeviceId) && d.Status != nameof(DeviceStatus.DOWN))
+                .Where(d => impactedDeviceIds.Contains(d.DeviceId) && d.Status != DeviceStatus.DOWN)
                 .ToListAsync();
 
             foreach (var impactedDevice in impactedDevices)
             {
-                impactedDevice.Status = nameof(DeviceStatus.IMPACTED);
+                impactedDevice.Status = DeviceStatus.UNREACHABLE;
             }
         }
 
@@ -111,12 +111,12 @@ public class ImpactAnalysisService : IImpactAnalysisService
             if (recoveredDeviceIds.Count > 0)
             {
                 var recoveredDevices = await _context.Devices
-                    .Where(d => recoveredDeviceIds.Contains(d.DeviceId) && d.Status == nameof(DeviceStatus.IMPACTED))
+                    .Where(d => recoveredDeviceIds.Contains(d.DeviceId) && d.Status == DeviceStatus.UNREACHABLE)
                     .ToListAsync();
 
                 foreach (var recoveredDevice in recoveredDevices)
                 {
-                    recoveredDevice.Status = nameof(DeviceStatus.UP);
+                    recoveredDevice.Status = DeviceStatus.UP;
                 }
             }
         }

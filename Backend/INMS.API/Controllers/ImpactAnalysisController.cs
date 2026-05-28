@@ -27,7 +27,7 @@ public class ImpactAnalysisController : ControllerBase
     [HttpPost("analyze/{deviceId:int}")]
     public async Task<IActionResult> Analyze(int deviceId)
     {
-        var updated = await SetDeviceStatusAsync(deviceId, nameof(DeviceStatus.DOWN));
+        var updated = await SetDeviceStatusAsync(deviceId, DeviceStatus.DOWN);
         if (!updated)
         {
             return NotFound();
@@ -40,7 +40,7 @@ public class ImpactAnalysisController : ControllerBase
     [HttpPost("clear/{deviceId:int}")]
     public async Task<IActionResult> Clear(int deviceId)
     {
-        var updated = await SetDeviceStatusAsync(deviceId, nameof(DeviceStatus.UP));
+        var updated = await SetDeviceStatusAsync(deviceId, DeviceStatus.UP);
         if (!updated)
         {
             return NotFound();
@@ -86,6 +86,7 @@ public class ImpactAnalysisController : ControllerBase
                 {
                     impacted.DeviceId,
                     d.DeviceName,
+                    d.DeviceType,
                     d.Status,
                     impacted.ImpactType
                 })
@@ -100,6 +101,7 @@ public class ImpactAnalysisController : ControllerBase
             {
                 device.DeviceId,
                 device.DeviceName,
+                device.DeviceType,
                 device.Status
             },
             RootCause = rootCause == null
@@ -115,16 +117,9 @@ public class ImpactAnalysisController : ControllerBase
         };
     }
 
-    private async Task<bool> SetDeviceStatusAsync(int deviceId, string status)
+    private async Task<bool> SetDeviceStatusAsync(int deviceId, DeviceStatus status)
     {
-        var device = await _deviceService.GetByIdAsync(deviceId);
-        if (device == null)
-        {
-            return false;
-        }
-
-        device.Status = status;
-        await _deviceService.UpdateAsync(deviceId, device);
-        return true;
+        var updatedDevice = await _deviceService.UpdateStatusAsync(deviceId, status);
+        return updatedDevice != null;
     }
 }
