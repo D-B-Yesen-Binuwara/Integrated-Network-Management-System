@@ -125,29 +125,42 @@ const NetworkMap = () => {
     }
   };
 
-  const loadMapDevices = async () => {
+  const loadMapDevices = async (isCancelled) => {
     try {
       const devices = await DeviceService.getDevicesForMap();
+
+      if (isCancelled) {
+        return;
+      }
+
       plotMarkers(devices);
       if (mapInstance.current) {
         mapInstance.current.invalidateSize();
       }
-      setLoading(false);
     } catch (err) {
+      if (isCancelled) {
+        return;
+      }
+
       setError('Failed to load map devices. Is the API running?');
-      setLoading(false);
       console.error(err);
+    } finally {
+      if (!isCancelled) {
+        setLoading(false);
+      }
     }
   };
 
   useEffect(() => {
     initializeMap();
+    let isCancelled = false;
     const loadTimer = window.setTimeout(() => {
-      loadMapDevices();
+      void loadMapDevices(isCancelled);
     }, 0);
 
     // Cleanup
     return () => {
+      isCancelled = true;
       window.clearTimeout(loadTimer);
       if (mapInstance.current) {
         mapInstance.current.remove();
