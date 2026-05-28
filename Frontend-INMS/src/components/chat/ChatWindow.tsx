@@ -94,7 +94,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed bottom-24 right-6 z-40 w-96 h-[550px] bg-white rounded-lg shadow-2xl border border-gray-200 flex flex-col animate-in slide-in-from-right-4 duration-300 sm:w-96 sm:h-[550px] max-sm:w-[90vw] max-sm:h-[70vh] max-sm:right-4 max-sm:bottom-20">
+    <div className="fixed bottom-24 right-6 z-[1200] w-96 h-[550px] bg-white rounded-lg shadow-2xl border border-gray-200 flex flex-col animate-in slide-in-from-right-4 duration-300 sm:w-96 sm:h-[550px] max-sm:w-[90vw] max-sm:h-[70vh] max-sm:right-4 max-sm:bottom-20">
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gradient-to-r from-orange-50 to-blue-50 rounded-t-lg">
         <div className="flex items-center space-x-3">
