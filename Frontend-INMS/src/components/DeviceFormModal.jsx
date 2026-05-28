@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { getDeviceTypeLabel, normalizeStatus } from '../utils/formatters';
 
 const EMPTY_FORM = {
@@ -88,13 +88,8 @@ function toPayload(formValues) {
 }
 
 export default function DeviceFormModal({ mode, initialDevice, onClose, onSubmit, onDelete, submitting, deleting }) {
-  const [form, setForm] = useState(EMPTY_FORM);
+  const [form, setForm] = useState(() => toFormValues(initialDevice));
   const [submitError, setSubmitError] = useState('');
-
-  useEffect(() => {
-    setForm(toFormValues(initialDevice));
-    setSubmitError('');
-  }, [initialDevice]);
 
   const isValid = useMemo(() => {
     return (

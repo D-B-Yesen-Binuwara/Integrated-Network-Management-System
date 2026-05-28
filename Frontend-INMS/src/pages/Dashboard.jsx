@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import DeviceService from '../services/DeviceService';
 import AlarmService from '../services/AlarmService';
 import NodeFilterBar from '../components/NodeFilterBar';
@@ -19,7 +19,6 @@ import {
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
   
   const [devices, setDevices] = useState([]);
   const [alarms, setAlarms] = useState([]);

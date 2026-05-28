@@ -359,6 +359,7 @@ export default function DeviceManagement() {
 
       {isFormOpen && (
         <DeviceFormModal
+          key={`${formMode}-${activeDevice?.deviceId ?? 'new'}`}
           mode={formMode}
           initialDevice={formMode === 'edit' ? activeDevice : null}
           onClose={closeForm}

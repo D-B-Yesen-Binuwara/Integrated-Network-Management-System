@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useState } from 'react';
+import { createContext, useMemo, useState } from 'react';
 
 const AppStoreContext = createContext(null);
 
@@ -11,14 +11,4 @@ export const AppStoreProvider = ({ children }) => {
   );
 
   return <AppStoreContext.Provider value={value}>{children}</AppStoreContext.Provider>;
-};
-
-export const useAppStore = () => {
-  const context = useContext(AppStoreContext);
-
-  if (!context) {
-    throw new Error('useAppStore must be used within AppStoreProvider');
-  }
-
-  return context;
 };

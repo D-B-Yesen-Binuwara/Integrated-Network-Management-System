@@ -141,12 +141,14 @@ const NetworkMap = () => {
   };
 
   useEffect(() => {
-    setLoading(true);
     initializeMap();
-    loadMapDevices();
+    const loadTimer = window.setTimeout(() => {
+      loadMapDevices();
+    }, 0);
 
     // Cleanup
     return () => {
+      window.clearTimeout(loadTimer);
       if (mapInstance.current) {
         mapInstance.current.remove();
         mapInstance.current = null;
