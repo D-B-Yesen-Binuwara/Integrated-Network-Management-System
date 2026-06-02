@@ -7,6 +7,7 @@ Web-based system to model and simulate fault detection, alarm handling, and impa
 - **.NET 9.0 SDK** ([download](https://dotnet.microsoft.com/download/dotnet/9.0))
 - **Docker & Docker Compose** ([install](https://docs.docker.com/get-docker/))
 - **SQL Server 2022** (runs in Docker container, no local install needed)
+- **Ollama** ([install](https://ollama.ai/)) with llama3 model for AI Chatbot
 
 ## Quick Start
 
@@ -24,14 +25,54 @@ make rebuild
 make seed
 ```
 
-3. Open API docs:
+3. Install and start Ollama, then pull the llama3 model:
+
+```bash
+ollama pull llama3
+```
+
+4. Open API docs:
 
 - Swagger: http://localhost:5289/swagger
 
-4. Run automated impact-analysis demo checks:
+5. Start the frontend:
+
+```bash
+cd Frontend-INMS
+npm install
+npm run dev
+```
+
+Frontend will be available at: http://localhost:5173
+
+6. Run automated impact-analysis demo checks:
 
 ```bash
 make demo
+```
+
+## AI Chatbot Feature
+
+The system includes a local AI chatbot powered by Ollama's llama3 model, integrated into the Network Management System.
+
+### Features:
+- ChatGPT-style UI with message history
+- Domain-specific responses for network operations (SLBN, CEAN, MSAN)
+- Real-time conversation with loading indicators
+- Auto-scroll to latest messages
+
+### Accessing the Chatbot:
+1. Navigate to the "AI Chat" section in the sidebar
+2. Start asking questions about network nodes, failures, or system insights
+
+### API Endpoint:
+- POST `/api/chat` - Send user messages and receive AI responses
+
+### Example Usage:
+```bash
+curl -X POST http://localhost:5289/api/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "What is SLBN?"}'
 ```
 
 ## Available Commands

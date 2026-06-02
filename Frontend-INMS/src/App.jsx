@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { BrowserRouter as Router, useLocation } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
+import FloatingChatbot from './components/chat/FloatingChatbot';
 import AppRoutes from './routes/AppRoutes';
 import { useMsal } from "@azure/msal-react";
 import { loginRequest } from "./authConfig";
@@ -9,8 +10,9 @@ import { loginRequest } from "./authConfig";
 // import './App.css';
 
 function AppContent() {
-  const [collapsed, setCollapsed] = useState(true); // Changed default to true
+  const [collapsed, setCollapsed] = useState(true);
   const location = useLocation();
+<<<<<<< HEAD
 
   const { instance, accounts } = useMsal();
 
@@ -25,13 +27,15 @@ const handleMicrosoftLogin = async () => {
 };
   
   // Pages that should not show sidebar
+=======
+>>>>>>> 890784de390338509a6c41436adf7103f80c104d
   const authPages = ['/login', '/register'];
   const isAuthPage = authPages.includes(location.pathname);
 
   if (isAuthPage) {
     return (
       <div className="h-screen flex flex-col bg-gray-50 text-gray-900">
-        <Navbar onToggle={() => setCollapsed(p => !p)} />
+        <Navbar onToggle={() => setCollapsed((p) => !p)} />
         <main className="flex-1 pt-16 overflow-y-auto">
           <AppRoutes />
         </main>
@@ -44,8 +48,12 @@ const handleMicrosoftLogin = async () => {
    
 
     <div className="h-screen flex flex-col bg-gray-50 text-gray-900">
+<<<<<<< HEAD
       <Navbar onToggle={() => setCollapsed(p => !p)} />
 
+=======
+      <Navbar onToggle={() => setCollapsed((p) => !p)} />
+>>>>>>> 890784de390338509a6c41436adf7103f80c104d
       <div className="flex flex-1 pt-16">
         <Sidebar collapsed={collapsed} />
 
@@ -57,6 +65,7 @@ const handleMicrosoftLogin = async () => {
           <AppRoutes />
         </main>
       </div>
+      <FloatingChatbot />
     </div>
   </>
 );

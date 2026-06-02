@@ -297,5 +297,98 @@ namespace INMS.Application.Services
             await _context.SaveChangesAsync();
             return device;
         }
+
+        public async Task<PagedResult<DeviceListDto>> GetPagedDevicesAsync(DeviceQueryParams queryParams)
+        {
+            // Build the base query with joins
+            var query = _context.Devices
+                .AsNoTracking()
+                .Join(_context.LEAs.AsNoTracking(),
+                    d => d.LEAId,
+                    l => l.LEAId,
+                    (d, l) => new { Device = d, Lea = l })
+                .Join(_context.Provinces.AsNoTracking(),
+                    dl => dl.Lea.ProvinceId,
+                    p => p.ProvinceId,
+                    (dl, p) => new { dl.Device, dl.Lea, Province = p })
+                .Join(_context.Regions.AsNoTracking(),
+                    dlp => dlp.Province.RegionId,
+                    r => r.RegionId,
+                    (dlp, r) => new { dlp.Device, dlp.Lea, dlp.Province, Region = r })
+                .AsQueryable();
+
+            // Apply filters conditionally
+            if (queryParams.Status.HasValue)
+            {
+                query = query.Where(x => x.Device.Status == queryParams.Status.Value);
+            }
+
+            if (queryParams.LEAId.HasValue)
+            {
+                query = query.Where(x => x.Device.LEAId == queryParams.LEAId.Value);
+            }
+
+            if (queryParams.AssignedUserId.HasValue)
+            {
+                query = query.Where(x => x.Device.AssignedUserId == queryParams.AssignedUserId.Value);
+            }
+
+            // Get total count before pagination
+            var totalCount = await query.CountAsync();
+
+            // Apply sorting
+            var order = queryParams.Order?.ToLower() ?? "asc";
+            var sortBy = queryParams.SortBy?.ToLower() ?? "devicename";
+
+            query = sortBy switch
+            {
+                "status" => order == "desc" 
+                    ? query.OrderByDescending(x => x.Device.Status)
+                    : query.OrderBy(x => x.Device.Status),
+                "prioritylevel" => order == "desc"
+                    ? query.OrderByDescending(x => x.Device.PriorityLevel)
+                    : query.OrderBy(x => x.Device.PriorityLevel),
+                _ => order == "desc"
+                    ? query.OrderByDescending(x => x.Device.DeviceName)
+                    : query.OrderBy(x => x.Device.DeviceName)
+            };
+
+            // Apply pagination
+            var page = Math.Max(queryParams.Page, 1);
+            var pageSize = Math.Max(queryParams.PageSize, 1);
+            var skip = (page - 1) * pageSize;
+
+            // Project to DTO and execute query
+            var data = await query
+                .Skip(skip)
+                .Take(pageSize)
+                .GroupJoin(_context.Users.AsNoTracking(),
+                    x => x.Device.AssignedUserId,
+                    u => u.UserId,
+                    (x, users) => new { x.Device, x.Lea, x.Province, x.Region, Users = users })
+                .SelectMany(
+                    x => x.Users.DefaultIfEmpty(),
+                    (x, u) => new DeviceListDto(
+                        x.Device.DeviceId,
+                        x.Device.DeviceName,
+                        x.Device.DeviceType,
+                        x.Device.IP,
+                        x.Device.Status,
+                        x.Device.PriorityLevel,
+                        x.Device.LEAId,
+                        x.Lea.Name,
+                        x.Province.Name,
+                        x.Region.Name,
+                        x.Device.Latitude,
+                        x.Device.Longitude,
+                        x.Device.AssignedUserId,
+                        u != null ? u.FullName : null,
+                        u != null ? u.ServiceId : null,
+                        x.Device.IsSimulatedDown
+                    ))
+                .ToListAsync();
+
+            return new PagedResult<DeviceListDto>(data, totalCount, page, pageSize);
+        }
     }
 }

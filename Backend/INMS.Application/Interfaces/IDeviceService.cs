@@ -41,5 +41,6 @@ namespace INMS.Application.Interfaces
 
         // Sets the simulation state for a device (forces DOWN for testing).
         Task<Device?> SetSimulationStateAsync(int id, bool isSimulatedDown);
+        Task<PagedResult<DeviceListDto>> GetPagedDevicesAsync(DeviceQueryParams queryParams);
     }
 }

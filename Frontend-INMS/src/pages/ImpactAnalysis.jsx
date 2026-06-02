@@ -1,174 +1,265 @@
 // pages/ImpactAnalysis.jsx
-import { useState, useEffect, useCallback } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import SummaryCard from "../components/SummaryCard";
 import NodeFilterBar from "../components/NodeFilterBar";
 import DeviceService from "../services/DeviceService";
 import ImpactAnalysisService from "../services/ImpactAnalysisService";
 import {
+  getDeviceTypeLabel,
   getStatusBadgeClass,
   getTypeBadgeClass,
   normalizeStatus
 } from "../utils/formatters";
 
-// Default filter values
 const DEFAULT_FILTERS = { search: "", region: "", type: "", status: "" };
+const EMPTY_SUMMARY = {
+  slbnAffected: 0,
+  ceanAffected: 0,
+  msanAffected: 0,
+  customerAffected: 0,
+  totalAffected: 0
+};
 
-// Main ImpactAnalysis component
-export default function ImpactAnalysis() {
-  const [searchParams] = useSearchParams();
-  const [selectedDeviceId, setSelectedDeviceId] = useState(null);
-  const [nodeSearch, setNodeSearch] = useState("");
-  const [filters, setFilters] = useState(DEFAULT_FILTERS);
-  const [devices, setDevices] = useState([]);
-  const [filteredDevices, setFilteredDevices] = useState([]);
-  const [showDeviceDropdown, setShowDeviceDropdown] = useState(false);
-  
-  // State for impact analysis data
-  const [impactData, setImpactData] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [analyzing, setAnalyzing] = useState(false);
+function asArray(value) {
+  if (Array.isArray(value)) return value;
+  if (Array.isArray(value?.value)) return value.value;
+  return [];
+}
 
-  // Load all devices for search
-  useEffect(() => {
-    DeviceService.getAll()
-      .then(setDevices)
-      .catch(err => console.error("Failed to load devices:", err));
-  }, []);
+function findDevice(devices, query) {
+  const term = String(query ?? "").trim().toLowerCase();
+  if (!term) return null;
 
-  // Load device from URL parameter
-  useEffect(() => {
-    const deviceId = searchParams.get("deviceId");
-    if (!deviceId) return;
+  const exact = devices.find((device) =>
+    String(device.deviceId) === term ||
+    String(device.deviceName ?? "").toLowerCase() === term ||
+    String(device.ip ?? "").toLowerCase() === term
+  );
 
-    const id = Number(deviceId);
-    setSelectedDeviceId(id);
-    
-    // Find device name from loaded devices
-    const device = devices.find(d => d.deviceId === id);
-    if (device) {
-      setNodeSearch(device.deviceName);
-    } else {
-      // If devices not loaded yet, fetch the specific device
-      DeviceService.getById(id)
-        .then((device) => {
-          if (device) setNodeSearch(device.deviceName);
-        })
-        .catch((err) => console.error("Failed to load device:", err));
-    }
-  }, [searchParams, devices]);
+  if (exact) return exact;
 
-  // Filter devices based on search input
-  useEffect(() => {
-    if (!nodeSearch.trim()) {
-      setFilteredDevices([]);
-      setShowDeviceDropdown(false);
-      return;
-    }
+  return devices.find((device) =>
+    String(device.deviceName ?? "").toLowerCase().includes(term) ||
+    String(device.ip ?? "").toLowerCase().includes(term)
+  ) ?? null;
+}
 
-    const filtered = devices.filter(device => 
-      device.deviceName.toLowerCase().includes(nodeSearch.toLowerCase()) ||
-      device.deviceId.toString().includes(nodeSearch)
-    ).slice(0, 10); // Limit to 10 results
+function getNodeType(node) {
+  return getDeviceTypeLabel(node.deviceType ?? node.type);
+}
 
-    setFilteredDevices(filtered);
-    setShowDeviceDropdown(filtered.length > 0);
-  }, [nodeSearch, devices]);
+function getNodeRegion(node) {
+  return node.regionName ?? node.region ?? "-";
+}
 
-  // Handle device selection
-  const handleDeviceSelect = (device) => {
-    setSelectedDeviceId(device.deviceId);
-    setNodeSearch(device.deviceName);
-    setShowDeviceDropdown(false);
+function getNodeProvince(node) {
+  return node.provinceName ?? node.province ?? "-";
+}
+
+function getNodeLea(node) {
+  return node.leaName ?? node.lea ?? "-";
+}
+
+function getNodeIp(node) {
+  return node.ip ?? node.IP ?? "-";
+}
+
+function getNodeLocation(node) {
+  if (node.location) return node.location;
+  if (node.latitude != null && node.longitude != null) return `${node.latitude}, ${node.longitude}`;
+  return "-";
+}
+
+function buildSummary(nodes) {
+  return nodes.reduce((summary, node) => {
+    const type = getNodeType(node);
+    if (type === "SLBN") summary.slbnAffected += 1;
+    if (type === "CEAN") summary.ceanAffected += 1;
+    if (type === "MSAN") summary.msanAffected += 1;
+    if (type === "Customer") summary.customerAffected += 1;
+    summary.totalAffected += 1;
+    return summary;
+  }, { ...EMPTY_SUMMARY });
+}
+
+function normalizeSummary(summary, nodes) {
+  if (!summary) {
+    return buildSummary(nodes);
+  }
+
+  return {
+    slbnAffected: Number(summary.slbnAffected ?? 0),
+    ceanAffected: Number(summary.ceanAffected ?? 0),
+    msanAffected: Number(summary.msanAffected ?? 0),
+    customerAffected: Number(summary.customerAffected ?? 0),
+    totalAffected: Number(summary.totalAffected ?? nodes.length)
   };
+}
 
-  // Load impact analysis data when device is selected
-  useEffect(() => {
-    if (!selectedDeviceId) return;
+function buildSegments(nodes) {
+  const bySegment = new Map();
 
-    const fetchImpactData = async () => {
-      setLoading(true);
-      setError(null);
-      
-      try {
-        const result = await ImpactAnalysisService.getImpactResult(selectedDeviceId);
-        setImpactData(result);
-      } catch (err) {
-        if (err.response?.status === 404) {
-          // Device not found or no impact data - this is normal
-          setImpactData(null);
-        } else {
-          setError("Failed to load impact analysis data. Please try again.");
-        }
-      } finally {
-        setLoading(false);
-      }
+  nodes.forEach((node) => {
+    const segment = {
+      regionName: getNodeRegion(node),
+      provinceName: getNodeProvince(node),
+      leaName: getNodeLea(node)
     };
-
-    fetchImpactData();
-  }, [selectedDeviceId]);
-
-  // Handle Run Analysis button click
-  const handleRunAnalysis = useCallback(async () => {
-    if (!selectedDeviceId) {
-      setError("Please select a device first");
-      return;
-    }
-
-    setAnalyzing(true);
-    setError(null);
-    
-    try {
-      const result = await ImpactAnalysisService.analyzeDeviceFailure(selectedDeviceId);
-      setImpactData(result);
-    } catch (err) {
-      if (err.response) {
-        setError(`Analysis failed: ${err.response.data?.error || err.response.statusText}`);
-      } else if (err.request) {
-        setError("Network error: Unable to connect to the server. Please check if the backend is running.");
-      } else {
-        setError(`Analysis failed: ${err.message}`);
-      }
-    } finally {
-      setAnalyzing(false);
-    }
-  }, [selectedDeviceId]);
-
-  // Process impacted devices from backend response
-  const impactedDevices = impactData?.affectedDevices || [];
-  const rootCauses = impactData?.rootCauses || [];
-  const analyzedDevice = impactData?.analyzedDevice;
-
-  // Get primary root cause (first one)
-  const primaryRootCause = rootCauses.length > 0 ? rootCauses[0] : null;
-
-  // Count devices by type
-  const getDeviceTypeCounts = useCallback(() => {
-    return impactedDevices.reduce((acc, device) => {
-      const type = device.deviceType || "UNKNOWN";
-      acc[type] = (acc[type] || 0) + 1;
-      return acc;
-    }, {});
-  }, [impactedDevices]);
-
-  const typeCounts = getDeviceTypeCounts();
-
-  // Filter impacted devices based on search and filters
-  const filtered = impactedDevices.filter((device) => {
-    const term = filters.search.toLowerCase();
-    const deviceName = device.deviceName || "";
-    if (term && !deviceName.toLowerCase().includes(term)) return false;
-    if (filters.status && device.status !== filters.status) return false;
-    return true;
+    const key = `${segment.regionName}|${segment.provinceName}|${segment.leaName}`;
+    const existing = bySegment.get(key) ?? { ...segment, affectedCount: 0 };
+    existing.affectedCount += 1;
+    bySegment.set(key, existing);
   });
 
-  // Calculate affected count by region/segment
-  const affectedCount = impactedDevices.length;
+  return Array.from(bySegment.values())
+    .sort((a, b) =>
+      b.affectedCount - a.affectedCount ||
+      a.regionName.localeCompare(b.regionName) ||
+      a.provinceName.localeCompare(b.provinceName) ||
+      a.leaName.localeCompare(b.leaName)
+    );
+}
+
+function getRootDeviceName(rootCause) {
+  return rootCause.rootDevice?.deviceName ?? rootCause.rootCauseDeviceId ?? "-";
+}
+
+export default function ImpactAnalysis() {
+  const [searchParams] = useSearchParams();
+  const [devices, setDevices] = useState([]);
+  const [nodeSearch, setNodeSearch] = useState("");
+  const [filters, setFilters] = useState(DEFAULT_FILTERS);
+  const [analysis, setAnalysis] = useState(null);
+  const [selectedDeviceId, setSelectedDeviceId] = useState(null);
+  const [isLoadingDevices, setIsLoadingDevices] = useState(true);
+  const [isLoadingAnalysis, setIsLoadingAnalysis] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+
+    DeviceService.getAll()
+      .then((response) => {
+        if (!active) return;
+        setDevices(asArray(response));
+      })
+      .catch(() => {
+        if (!active) return;
+        setError("Device list eka load karanna bari una. Backend/API eka check karanna.");
+      })
+      .finally(() => {
+        if (active) setIsLoadingDevices(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const loadResult = useCallback(async (deviceId) => {
+    setIsLoadingAnalysis(true);
+    setError("");
+
+    try {
+      const result = await ImpactAnalysisService.getResult(deviceId);
+      setAnalysis(result);
+      setSelectedDeviceId(deviceId);
+    } catch {
+      setAnalysis(null);
+      setError("Impact result eka load karanna bari una.");
+    } finally {
+      setIsLoadingAnalysis(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const deviceId = Number(searchParams.get("deviceId"));
+    if (!deviceId || devices.length === 0) return;
+
+    const matchedDevice = devices.find((device) => Number(device.deviceId) === deviceId);
+    if (matchedDevice) {
+      setNodeSearch(matchedDevice.deviceName);
+    }
+
+    setSelectedDeviceId(deviceId);
+    void loadResult(deviceId);
+  }, [devices, loadResult, searchParams]);
+
+  const impactedNodes = useMemo(
+    () => asArray(analysis?.impactedDevices ?? analysis?.affectedDevices),
+    [analysis]
+  );
+  const rootCauses = useMemo(() => asArray(analysis?.rootCauses), [analysis]);
+  const segments = useMemo(
+    () => asArray(analysis?.isolatedSegments).length > 0
+      ? asArray(analysis?.isolatedSegments)
+      : buildSegments(impactedNodes),
+    [analysis, impactedNodes]
+  );
+  const summary = useMemo(() => normalizeSummary(analysis?.summary, impactedNodes), [analysis, impactedNodes]);
+  const sourceDevice = analysis?.sourceDevice ?? analysis?.analyzedDevice ?? analysis?.device ?? null;
+  const affectedCount = Number(summary.totalAffected ?? impactedNodes.length);
+
+  const filtered = useMemo(() => impactedNodes.filter((node) => {
+    const term = filters.search.trim().toLowerCase();
+    const name = String(node.deviceName ?? node.name ?? "").toLowerCase();
+    const ip = String(getNodeIp(node)).toLowerCase();
+    const region = getNodeRegion(node);
+    const type = getNodeType(node);
+    const status = normalizeStatus(node.status);
+
+    if (term && !name.includes(term) && !ip.includes(term)) return false;
+    if (filters.region && region !== filters.region) return false;
+    if (filters.type && type !== filters.type) return false;
+    if (filters.status && status !== filters.status) return false;
+    return true;
+  }), [filters, impactedNodes]);
+
+  const handleRunAnalysis = async (event) => {
+    event.preventDefault();
+
+    const device = findDevice(devices, nodeSearch);
+    if (!device) {
+      setAnalysis(null);
+      setSelectedDeviceId(null);
+      setError("Device eka hoyaganna bari una. Node name/IP eka hariyata enter karanna.");
+      return;
+    }
+
+    setSelectedDeviceId(device.deviceId);
+    setNodeSearch(device.deviceName);
+    setIsLoadingAnalysis(true);
+    setError("");
+
+    try {
+      const result = await ImpactAnalysisService.analyze(device.deviceId);
+      setAnalysis(result);
+    } catch {
+      setError("Run analysis fail una. Backend log eka check karanna.");
+    } finally {
+      setIsLoadingAnalysis(false);
+    }
+  };
+
+  const handleClearImpact = async () => {
+    if (!selectedDeviceId) return;
+
+    setIsLoadingAnalysis(true);
+    setError("");
+
+    try {
+      const result = await ImpactAnalysisService.clear(selectedDeviceId);
+      setAnalysis(result);
+    } catch {
+      setError("Impact clear karanna bari una.");
+    } finally {
+      setIsLoadingAnalysis(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 p-6 space-y-6">
-      {/* Page Title */}
       <div>
         <h1 className="text-2xl font-semibold text-gray-800">
           Fault Localization & Impact Analysis
@@ -178,275 +269,173 @@ export default function ImpactAnalysis() {
         </p>
       </div>
 
-      {/* Debug Info (remove in production) */}
-      {process.env.NODE_ENV === 'development' && (
-        <div className="bg-gray-100 p-3 rounded text-xs space-y-1">
-          <div><strong>Debug Info:</strong></div>
-          <div>Selected Device ID: {selectedDeviceId || 'None'}</div>
-          <div>Node Search: "{nodeSearch}"</div>
-          <div>Devices Loaded: {devices.length}</div>
-          <div>Filtered Devices: {filteredDevices.length}</div>
-          <div>Impact Data: {impactData ? 'Loaded' : 'None'}</div>
-          <div>Root Causes: {rootCauses.length}</div>
-          <div>Affected Devices: {impactedDevices.length}</div>
-          <div>Loading: {loading ? 'Yes' : 'No'}</div>
-          <div>Analyzing: {analyzing ? 'Yes' : 'No'}</div>
-          {impactData && (
-            <div>API Response: {JSON.stringify(impactData, null, 2)}</div>
-          )}
-        </div>
-      )}
-
-      {/* Error Alert */}
-      {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-red-800 text-sm font-medium">{error}</p>
-        </div>
-      )}
-
-      {/* Root Cause Info */}
-      {primaryRootCause && (
+      {rootCauses.length > 0 && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <h3 className="text-blue-900 font-semibold text-sm mb-2">Root Cause Identified</h3>
-          <p className="text-blue-800 text-sm">
-            Device <strong>{primaryRootCause.rootDevice?.deviceName}</strong> (ID: {primaryRootCause.rootDevice?.deviceId}) - 
-            Type: {primaryRootCause.rootCauseType} | Alarm: {primaryRootCause.alarmType}
-          </p>
-          {rootCauses.length > 1 && (
-            <p className="text-blue-700 text-xs mt-1">
-              + {rootCauses.length - 1} additional root cause(s) detected
-            </p>
-          )}
+          <h2 className="text-blue-900 font-semibold text-sm mb-2">Root Cause Identified</h2>
+          <div className="space-y-1">
+            {rootCauses.map((rootCause) => (
+              <p key={rootCause.rootCauseId} className="text-blue-800 text-sm">
+                <span className="font-semibold">{getRootDeviceName(rootCause)}</span>
+                {" | "}
+                {rootCause.rootCauseType ?? "NODE_FAILURE"}
+                {rootCause.alarmType ? ` | ${rootCause.alarmType}` : ""}
+              </p>
+            ))}
+          </div>
         </div>
       )}
 
-      {/* Node Selector */}
-      <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-2">
+      <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-3">
         <label className="text-sm font-medium text-gray-600">
           Select Source Node
         </label>
-        <div className="flex gap-2 relative">
-          <div className="flex-1 relative">
-            <input
-              type="text"
-              value={nodeSearch}
-              onChange={(e) => setNodeSearch(e.target.value)}
-              onFocus={() => nodeSearch && setShowDeviceDropdown(filteredDevices.length > 0)}
-              placeholder="Search node by name or ID..."
-              className="border border-gray-300 rounded-l-lg px-3 py-2 text-sm
-              w-full focus:outline-none focus:ring-2 focus:ring-blue-400"
-            />
-            {showDeviceDropdown && (
-              <div className="absolute top-full left-0 right-0 bg-white border border-gray-300 rounded-lg shadow-lg z-10 max-h-60 overflow-y-auto">
-                {filteredDevices.map(device => (
-                  <div
-                    key={device.deviceId}
-                    onClick={() => handleDeviceSelect(device)}
-                    className="px-3 py-2 hover:bg-gray-100 cursor-pointer border-b border-gray-100 last:border-b-0"
-                  >
-                    <div className="font-medium text-sm">{device.deviceName}</div>
-                    <div className="text-xs text-gray-500">ID: {device.deviceId} | Status: {device.status}</div>
-                  </div>
-                ))}
-              </div>
+        <form onSubmit={handleRunAnalysis} className="flex flex-col gap-2 sm:flex-row">
+          <input
+            type="text"
+            list="impact-node-options"
+            value={nodeSearch}
+            onChange={(e) => {
+              setNodeSearch(e.target.value);
+              setSelectedDeviceId(null);
+            }}
+            placeholder={isLoadingDevices ? "Loading nodes..." : "Search node by name, ID, or IP..."}
+            className="border border-gray-300 rounded-lg px-3 py-2 text-sm flex-1 focus:outline-none focus:ring-2 focus:ring-blue-400"
+            disabled={isLoadingDevices || isLoadingAnalysis}
+          />
+          <datalist id="impact-node-options">
+            {devices.map((device) => (
+              <option key={device.deviceId} value={device.deviceName}>
+                {device.ip}
+              </option>
+            ))}
+          </datalist>
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              disabled={isLoadingDevices || isLoadingAnalysis || !nodeSearch.trim()}
+              className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isLoadingAnalysis ? "Analyzing..." : "Run Analysis"}
+            </button>
+            {selectedDeviceId && (
+              <button
+                type="button"
+                onClick={handleClearImpact}
+                disabled={isLoadingAnalysis}
+                className="border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 rounded-lg transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Clear
+              </button>
             )}
           </div>
-          <button
-            onClick={handleRunAnalysis}
-            disabled={!selectedDeviceId || analyzing}
-            className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white text-sm
-            font-medium px-4 py-2 rounded-r-lg transition whitespace-nowrap"
-          >
-            {analyzing ? "Analyzing..." : "Run Analysis"}
-          </button>
-        </div>
-        <div className="flex gap-2 mt-2">
-          <button
-            onClick={async () => {
-              if (!selectedDeviceId) return;
-              try {
-                setAnalyzing(true);
-                const result = await ImpactAnalysisService.clearDeviceImpact(selectedDeviceId);
-                setImpactData(result);
-              } catch (err) {
-                setError(`Clear failed: ${err.message}`);
-              } finally {
-                setAnalyzing(false);
-              }
-            }}
-            disabled={!selectedDeviceId || analyzing}
-            className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white text-xs
-            font-medium px-3 py-1 rounded transition"
-          >
-            Clear Impact
-          </button>
-          <button
-            onClick={async () => {
-              if (!selectedDeviceId) return;
-              try {
-                setLoading(true);
-                const result = await ImpactAnalysisService.getImpactResult(selectedDeviceId);
-                setImpactData(result);
-              } catch (err) {
-                setError(`Refresh failed: ${err.message}`);
-              } finally {
-                setLoading(false);
-              }
-            }}
-            disabled={!selectedDeviceId || loading}
-            className="bg-gray-600 hover:bg-gray-700 disabled:bg-gray-400 text-white text-xs
-            font-medium px-3 py-1 rounded transition"
-          >
-            Refresh
-          </button>
-        </div>
-        {selectedDeviceId && (
-          <div className="text-xs text-green-600">
-            Selected: Device ID {selectedDeviceId}
+        </form>
+
+        {sourceDevice && (
+          <div className="text-xs text-gray-500">
+            Source: <span className="font-medium text-gray-700">{sourceDevice.deviceName}</span>
+            {" | "}
+            {getNodeIp(sourceDevice)}
+            {" | "}
+            {getNodeType(sourceDevice)}
+            {" | "}
+            {normalizeStatus(sourceDevice.status)}
+          </div>
+        )}
+
+        {error && (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            {error}
           </div>
         )}
       </div>
 
-      {/* Loading State */}
-      {loading && (
-        <div className="flex items-center justify-center py-12">
-          <div className="text-center">
-            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-            <p className="text-gray-600 text-sm mt-4">Loading impact analysis...</p>
-          </div>
-        </div>
-      )}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <SummaryCard title="SLBN Nodes Affected" value={summary.slbnAffected} color="bg-purple-50 border-purple-300" />
+        <SummaryCard title="CEAN Nodes Affected" value={summary.ceanAffected} color="bg-blue-50 border-blue-300" />
+        <SummaryCard title="MSAN Nodes Affected" value={summary.msanAffected} color="bg-teal-50 border-teal-300" />
+        <SummaryCard title="Total Nodes Affected" value={affectedCount} color="bg-orange-50 border-orange-300" />
+      </div>
 
-      {/* Summary Cards */}
-      {!loading && impactData && (
-        <>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {/* Analyzed Device Card */}
-            <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-              <h3 className="text-gray-700 font-semibold text-sm mb-3">Analyzed Device</h3>
-              <div className="space-y-2 text-xs">
-                <div><strong>Name:</strong> {analyzedDevice?.deviceName}</div>
-                <div><strong>ID:</strong> {analyzedDevice?.deviceId}</div>
-                <div><strong>Type:</strong> <span className={`${getTypeBadgeClass(analyzedDevice?.deviceType)} px-2 py-1 rounded text-xs font-semibold`}>{analyzedDevice?.deviceType}</span></div>
-                <div><strong>Status:</strong> <span className={`${getStatusBadgeClass(analyzedDevice?.status)} px-2 py-1 rounded text-xs font-bold`}>{analyzedDevice?.status}</span></div>
-                <div><strong>Location:</strong> {analyzedDevice?.lea}, {analyzedDevice?.province}</div>
+      <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+        <h2 className="text-base font-semibold text-gray-700 mb-3">
+          Isolated Network Segments
+        </h2>
+        {segments.length === 0 ? (
+          <div className="bg-gray-50 border-l-4 border-gray-300 rounded px-4 py-3 text-sm text-gray-500">
+            No isolated downstream segments detected.
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {segments.map((segment) => (
+              <div
+                key={`${segment.regionName}-${segment.provinceName}-${segment.leaName}`}
+                className="bg-yellow-50 border-l-4 border-yellow-400 rounded px-4 py-3 text-sm text-yellow-800"
+              >
+                {segment.regionName} / {segment.provinceName} / {segment.leaName}: {segment.affectedCount} nodes affected
               </div>
-            </div>
-            
-            <SummaryCard 
-              title="Total Nodes Affected" 
-              value={affectedCount.toString()} 
-              color="bg-orange-50 border-orange-300" 
-            />
-            
-            <SummaryCard 
-              title="Root Causes Found" 
-              value={rootCauses.length.toString()} 
-              color="bg-red-50 border-red-300" 
-            />
-            
-            {Object.entries(typeCounts).slice(0, 1).map(([type, count]) => (
-              <SummaryCard
-                key={type}
-                title={`${type} Affected`}
-                value={count.toString()}
-                color="bg-blue-50 border-blue-300"
-              />
             ))}
           </div>
+        )}
+      </div>
 
-          {/* Impact Scope */}
-          {primaryRootCause && (
-            <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-              <h2 className="text-base font-semibold text-gray-700 mb-3">
-                Impact Scope
-              </h2>
-              <div className="space-y-2">
-                {rootCauses.map((rootCause, index) => (
-                  <div key={rootCause.rootCauseId} className="bg-yellow-50 border-l-4 border-yellow-400 rounded px-4 py-3 text-sm text-yellow-800">
-                    Root Cause {index + 1}: {rootCause.rootDevice?.deviceName} ({rootCause.rootCauseType})
-                    <br />
-                    Alarm Type: {rootCause.alarmType} | Detected: {new Date(rootCause.detectedTime).toLocaleString()}
-                  </div>
-                ))}
-                <div className="text-sm text-gray-600 mt-2">
-                  Total Affected Devices: {affectedCount}
-                </div>
-              </div>
-            </div>
-          )}
+      <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+        <h2 className="text-base font-semibold text-gray-700 mb-4">
+          Affected Nodes ({affectedCount})
+        </h2>
 
-          {/* Affected Nodes Table */}
-          <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-            <h2 className="text-base font-semibold text-gray-700 mb-4">
-              Affected Nodes ({affectedCount})
-            </h2>
+        <NodeFilterBar filters={filters} onChange={setFilters} nodes={impactedNodes} />
 
-            <NodeFilterBar 
-              filters={filters} 
-              onChange={setFilters} 
-              nodes={impactedDevices} 
-            />
-
-            {filtered.length === 0 ? (
-              <div className="text-center text-gray-400 py-10 text-sm">
-                {impactedDevices.length === 0 
-                  ? "No affected nodes found." 
-                  : "No nodes match the current filters."}
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm text-left">
-                  <thead>
-                    <tr className="border-b border-gray-200 text-gray-500 uppercase text-xs">
-                      <th className="py-2 px-3 font-semibold">Device ID</th>
-                      <th className="py-2 px-3 font-semibold">Device Name</th>
-                      <th className="py-2 px-3 font-semibold">Status</th>
-                      <th className="py-2 px-3 font-semibold">Impact Type</th>
-                      <th className="py-2 px-3 font-semibold">Location</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filtered.map((device) => (
-                      <tr 
-                        key={device.deviceId} 
-                        className="border-b border-gray-100 hover:bg-gray-50 transition"
-                      >
-                        <td className="py-2.5 px-3 font-mono text-xs text-gray-600">
-                          {device.deviceId}
-                        </td>
-                        <td className="py-2.5 px-3 font-medium text-gray-800">
-                          {device.deviceName}
-                        </td>
-                        <td className="py-2.5 px-3">
-                          <span className={`${getStatusBadgeClass(device.status)} text-xs font-bold px-2 py-0.5 rounded`}>
-                            {device.status}
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-3 text-gray-600 text-sm">
-                          {device.impactType}
-                        </td>
-                        <td className="py-2.5 px-3 text-gray-500 text-xs">
-                          {device.lea} | {device.province}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </>
-      )}
-
-      {/* Empty State */}
-      {!loading && !impactData && !error && (
-        <div className="bg-gray-100 rounded-lg p-12 text-center">
-          <p className="text-gray-600 text-sm">
-            Select a device and click "Run Analysis" to see impact analysis results
-          </p>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm text-left">
+            <thead>
+              <tr className="border-b border-gray-200 text-gray-500 uppercase text-xs">
+                <th className="py-2 px-3 font-semibold">Node Name</th>
+                <th className="py-2 px-3 font-semibold">IP Address</th>
+                <th className="py-2 px-3 font-semibold">Type</th>
+                <th className="py-2 px-3 font-semibold">Region</th>
+                <th className="py-2 px-3 font-semibold">Province</th>
+                <th className="py-2 px-3 font-semibold">Parent</th>
+                <th className="py-2 px-3 font-semibold">Childs</th>
+                <th className="py-2 px-3 font-semibold">Location</th>
+                <th className="py-2 px-3 font-semibold">Impact</th>
+                <th className="py-2 px-3 font-semibold">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={10} className="text-center text-gray-400 py-10 text-sm">
+                    {impactedNodes.length === 0 ? "No affected nodes found." : "No nodes match the current filters."}
+                  </td>
+                </tr>
+              ) : (
+                filtered.map((node) => (
+                  <tr key={node.deviceId ?? node.deviceName} className="border-b border-gray-100 hover:bg-gray-50 transition">
+                    <td className="py-2.5 px-3 font-medium text-gray-800">{node.deviceName}</td>
+                    <td className="py-2.5 px-3 text-gray-600 font-mono text-xs">{getNodeIp(node)}</td>
+                    <td className="py-2.5 px-3">
+                      <span className={`${getTypeBadgeClass(getNodeType(node))} text-xs font-semibold px-2 py-0.5 rounded`}>
+                        {getNodeType(node)}
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-3 text-gray-600">{getNodeRegion(node)}</td>
+                    <td className="py-2.5 px-3 text-gray-600">{getNodeProvince(node)}</td>
+                    <td className="py-2.5 px-3 text-gray-500 text-xs">{node.parent ?? "-"}</td>
+                    <td className="py-2.5 px-3 text-gray-500 text-xs">{node.childs ?? "-"}</td>
+                    <td className="py-2.5 px-3 text-gray-500 text-xs whitespace-nowrap">{getNodeLocation(node)}</td>
+                    <td className="py-2.5 px-3 text-gray-500 text-xs">{node.impactType ?? "-"}</td>
+                    <td className="py-2.5 px-3">
+                      <span className={`${getStatusBadgeClass(node.status)} text-xs font-bold px-2 py-0.5 rounded`}>
+                        {normalizeStatus(node.status)}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
-      )}
+      </div>
     </div>
   );
 }

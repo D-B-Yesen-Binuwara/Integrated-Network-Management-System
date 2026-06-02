@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using INMS.Application.Interfaces;
+using INMS.Application.DTOs;
 using INMS.Domain.Entities;
 
 namespace INMS.API.Controllers;
@@ -20,6 +21,25 @@ public class AlarmController : ControllerBase
     public async Task<IActionResult> GetAll()
     {
         var alarms = await _alarmService.GetAllAsync();
+        return Ok(alarms);
+    }
+
+    // Fetch filtered alarms with optional sorting
+    [HttpGet("filtered")]
+    public async Task<IActionResult> GetFiltered([FromQuery] bool? isActive = null,
+        [FromQuery] DateTime? dateFrom = null, [FromQuery] DateTime? dateTo = null,
+        [FromQuery] int? deviceId = null, [FromQuery] string? sortBy = null, [FromQuery] string? order = "desc")
+    {
+        var queryParams = new AlarmQueryParams(isActive, dateFrom, dateTo, deviceId, sortBy, order);
+        var result = await _alarmService.GetFilteredAsync(queryParams);
+        return Ok(result);
+    }
+
+    // Fetch active alarms
+    [HttpGet("active")]
+    public async Task<IActionResult> GetActive()
+    {
+        var alarms = await _alarmService.GetActiveAsync();
         return Ok(alarms);
     }
 

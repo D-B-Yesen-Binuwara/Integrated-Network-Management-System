@@ -56,3 +56,38 @@ public record DeviceListDto(
 	string? AssignedUserServiceId,
 	bool IsSimulatedDown
 );
+
+public record DeviceQueryParams(
+	int Page = 1,
+	int PageSize = 20,
+	DeviceStatus? Status = null,
+	int? LEAId = null,
+	int? AssignedUserId = null,
+	string? SortBy = null,
+	string? Order = "asc"
+);
+
+public record PagedResult<T>(
+	IEnumerable<T> Data,
+	int TotalCount,
+	int Page,
+	int PageSize
+);
+
+public record AlarmQueryParams(
+	bool? IsActive = null,
+	DateTime? DateFrom = null,
+	DateTime? DateTo = null,
+	int? DeviceId = null,
+	string? SortBy = null,
+	string? Order = "desc"
+);
+
+public record AlarmListDto(
+	int AlarmId,
+	int DeviceId,
+	string AlarmType,
+	DateTime RaisedTime,
+	DateTime? ClearedTime,
+	bool IsActive
+);
