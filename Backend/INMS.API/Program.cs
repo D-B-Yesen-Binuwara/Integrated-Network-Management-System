@@ -165,13 +165,9 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-<<<<<<< HEAD
 app.UseCors("AllowFrontend");
 app.UseAuthentication();
 app.UseAuthorization();
-=======
-app.UseCors(app.Environment.IsDevelopment() ? "AllowAll" : "AllowFrontend");
->>>>>>> 890784de390338509a6c41436adf7103f80c104d
 app.UseHttpsRedirection();
 app.MapControllers();
 
