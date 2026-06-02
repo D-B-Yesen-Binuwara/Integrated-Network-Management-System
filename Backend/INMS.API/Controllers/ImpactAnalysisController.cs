@@ -24,8 +24,9 @@ public class ImpactAnalysisController : ControllerBase
         _context = context;
     }
 
+    // DEPRECATED: Use EnhancedImpactAnalysisController instead
     // Marks a device as DOWN and performs impact analysis.
-    [HttpPost("analyze/{deviceId:int}")]
+    [HttpPost("legacy/analyze/{deviceId:int}")]
     public async Task<IActionResult> Analyze(int deviceId)
     {
         try
@@ -45,8 +46,9 @@ public class ImpactAnalysisController : ControllerBase
         }
     }
 
+    // DEPRECATED: Use EnhancedImpactAnalysisController instead
     // Clears the impact by marking a device as UP.
-    [HttpPost("clear/{deviceId:int}")]
+    [HttpPost("legacy/clear/{deviceId:int}")]
     public async Task<IActionResult> Clear(int deviceId)
     {
         try
@@ -66,8 +68,9 @@ public class ImpactAnalysisController : ControllerBase
         }
     }
 
+    // DEPRECATED: Use EnhancedImpactAnalysisController instead
     // Retrieves the latest impact analysis result for a device.
-    [HttpGet("result/{deviceId:int}")]
+    [HttpGet("legacy/result/{deviceId:int}")]
     public async Task<IActionResult> GetResult(int deviceId)
     {
         var device = await _deviceService.GetByIdAsync(deviceId);

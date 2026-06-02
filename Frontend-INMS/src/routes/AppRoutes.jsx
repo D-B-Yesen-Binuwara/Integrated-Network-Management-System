@@ -26,7 +26,7 @@ const AppRoutes = () => {
       <Route path="/user-management" element={<UserManagement />} />
       <Route path="/events" element={<EventPage />} />
       <Route path="/home" element={<PlaceholderPage title="Home" />} />
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+     <Route path="*" element={<Navigate to="/login" replace />} />
 
 
       {/* <Route path="/" element={<Navigate to="/login" replace />} /> */}

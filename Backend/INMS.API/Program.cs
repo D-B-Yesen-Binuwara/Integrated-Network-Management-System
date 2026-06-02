@@ -1,10 +1,14 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 using INMS.Infrastructure.Persistence;
 using INMS.Domain.Interfaces;
 using INMS.Infrastructure.Repositories;
 using INMS.Application.Services;
 using INMS.Application.Interfaces;
 using INMS.API.BackgroundServices;
+using Microsoft.OpenApi.Models;
 
 // Load .env file into environment variables
 var envPath = Path.Combine(Directory.GetCurrentDirectory(), ".env");
@@ -74,6 +78,22 @@ builder.Services.AddScoped<IVendorStatsService, VendorStatsService>();
 builder.Services.AddHostedService<HeartbeatSchedulerService>();
 builder.Services.AddHostedService<HeartbeatFailureDetectionService>();
 
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = false,
+            ValidateAudience = false,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(
+                Encoding.UTF8.GetBytes("ThisIsMySuperSecretKey12345ThisIsMySuperSecretKey12345"))
+        };
+    });
+
+builder.Services.AddAuthorization();
+
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
@@ -93,7 +113,33 @@ builder.Services.AddCors(options =>
 });
 
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(options =>
+{
+    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT",
+        In = ParameterLocation.Header,
+        Description = "Enter JWT Token"
+    });
+
+    options.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            Array.Empty<string>()
+        }
+    });
+});
 
 var app = builder.Build();  
 
@@ -109,6 +155,8 @@ app.UseSwagger();
 app.UseSwaggerUI();
 
 app.UseCors("AllowFrontend");
+app.UseAuthentication();
+app.UseAuthorization();
 app.UseHttpsRedirection();
 app.MapControllers();
 
