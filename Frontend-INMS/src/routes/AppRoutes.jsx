@@ -10,6 +10,7 @@ import CorrelationPage from '../pages/CorrelationPage';
 import VendorsPage from '../pages/Vendors/VendorsPage';
 import Register from '../pages/Register';
 import Login from '../pages/Login';
+import Chat from '../components/Chat';
 import EventPage from '../pages/EventPage';
 
 const AppRoutes = () => {
@@ -22,16 +23,21 @@ const AppRoutes = () => {
       <Route path="/device-management" element={<DeviceManagement />} />
       <Route path="/correlation" element={<CorrelationPage />} />
       <Route path="/vendors" element={<VendorsPage />} />
+      <Route path="/chat" element={<Chat />} />
       <Route path="/profile" element={<UserProfile />} />
       <Route path="/user-management" element={<UserManagement />} />
       <Route path="/events" element={<EventPage />} />
       <Route path="/home" element={<PlaceholderPage title="Home" />} />
+<<<<<<< HEAD
      <Route path="*" element={<Navigate to="/login" replace />} />
 
 
       {/* <Route path="/" element={<Navigate to="/login" replace />} /> */}
+=======
+>>>>>>> 890784de390338509a6c41436adf7103f80c104d
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
+      <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
   );
 };

@@ -1,10 +1,30 @@
 // components/NodeFilterBar.jsx
+import {
+  getDeviceTypeLabel,
+  normalizeStatus
+} from "../utils/formatters";
 
 const DEVICE_TYPES = ["SLBN", "CEAN", "MSAN", "Customer"];
-const STATUSES = ["UP", "DOWN", "UNREACHABLE"];
-const REGIONS = ["Metro", "region01", "region02", "region03"];
+const STATUSES = ["UP", "DOWN", "UNREACHABLE", "IMPACTED"];
 
-export default function NodeFilterBar({ filters, onChange }) {
+function buildOptions(nodes, getValue, fallbackValues = []) {
+  const values = new Set(fallbackValues);
+
+  nodes.forEach((node) => {
+    const value = getValue(node);
+    if (value) {
+      values.add(value);
+    }
+  });
+
+  return Array.from(values).sort((a, b) => a.localeCompare(b));
+}
+
+export default function NodeFilterBar({ filters, onChange, nodes = [] }) {
+  const regionOptions = buildOptions(nodes, (node) => node.regionName ?? node.region);
+  const typeOptions = buildOptions(nodes, (node) => getDeviceTypeLabel(node.deviceType ?? node.type), DEVICE_TYPES);
+  const statusOptions = buildOptions(nodes, (node) => normalizeStatus(node.status), STATUSES);
+
   const input = "border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400";
 
   return (
@@ -23,7 +43,7 @@ export default function NodeFilterBar({ filters, onChange }) {
         className={input}
       >
         <option value="">All Regions</option>
-        {REGIONS.map((r) => <option key={r} value={r}>{r}</option>)}
+        {regionOptions.map((r) => <option key={r} value={r}>{r}</option>)}
       </select>
 
       <select
@@ -32,7 +52,7 @@ export default function NodeFilterBar({ filters, onChange }) {
         className={input}
       >
         <option value="">All Types</option>
-        {DEVICE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+        {typeOptions.map((t) => <option key={t} value={t}>{t}</option>)}
       </select>
 
       <select
@@ -41,7 +61,7 @@ export default function NodeFilterBar({ filters, onChange }) {
         className={input}
       >
         <option value="">All Status</option>
-        {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+        {statusOptions.map((s) => <option key={s} value={s}>{s}</option>)}
       </select>
     </div>
   );
