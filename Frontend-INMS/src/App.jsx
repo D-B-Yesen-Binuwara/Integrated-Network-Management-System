@@ -4,11 +4,31 @@ import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
 import FloatingChatbot from './components/chat/FloatingChatbot';
 import AppRoutes from './routes/AppRoutes';
+import { useMsal } from "@azure/msal-react";
+import { loginRequest } from "./authConfig";
+
 // import './App.css';
 
 function AppContent() {
   const [collapsed, setCollapsed] = useState(true);
   const location = useLocation();
+<<<<<<< HEAD
+
+  const { instance, accounts } = useMsal();
+
+const handleMicrosoftLogin = async () => {
+  try {
+    await instance.loginPopup(loginRequest);
+    console.log(accounts);
+    alert("Microsoft Login Success");
+  } catch (error) {
+    console.log(error);
+  }
+};
+  
+  // Pages that should not show sidebar
+=======
+>>>>>>> 890784de390338509a6c41436adf7103f80c104d
   const authPages = ['/login', '/register'];
   const isAuthPage = authPages.includes(location.pathname);
 
@@ -23,22 +43,37 @@ function AppContent() {
     );
   }
 
-  return (
+ return (
+  <>
+   
+
     <div className="h-screen flex flex-col bg-gray-50 text-gray-900">
+<<<<<<< HEAD
+      <Navbar onToggle={() => setCollapsed(p => !p)} />
+
+=======
       <Navbar onToggle={() => setCollapsed((p) => !p)} />
+>>>>>>> 890784de390338509a6c41436adf7103f80c104d
       <div className="flex flex-1 pt-16">
         <Sidebar collapsed={collapsed} />
-        <main className={`flex-1 main-content p-6 transition-all duration-300 ${collapsed ? 'ml-16' : 'ml-64'}`}>
+
+        <main
+          className={`flex-1 main-content p-6 transition-all duration-300 ${
+            collapsed ? 'ml-16' : 'ml-64'
+          }`}
+        >
           <AppRoutes />
         </main>
       </div>
       <FloatingChatbot />
     </div>
-  );
+  </>
+);
 }
 
 function App() {
   return (
+    
     <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <AppContent />
     </Router>

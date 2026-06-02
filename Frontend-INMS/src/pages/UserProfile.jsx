@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { useMsal } from "@azure/msal-react";
 
 const UserProfile = () => {
+    
+    const msUser = JSON.parse(localStorage.getItem("msUser"));
     const [userData, setUserData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [showPassword, setShowPassword] = useState(false);
@@ -19,8 +22,8 @@ const UserProfile = () => {
         setTimeout(() => {
             setUserData({
                 userId: '748392',
-                username: 'janedoe99',
-                fullName: 'Jane Doe',
+username: msUser?.username || 'No Username',
+fullName: msUser?.name || 'No Name',
                 passwordHash: 'N0c0perat0r_pwd!', // Simulated real password
                 roleId: 'ROLE_ENGINEER_2',
                 role: 'Network Operations Engineer',
@@ -146,11 +149,11 @@ const UserProfile = () => {
                                     </tr>
                                     <tr className="border-b border-slate-100">
                                         <td className="py-3 text-slate-500">Username</td>
-                                        <td className="py-3 font-medium text-slate-800">{userData.username}</td>
+                                      <td className="py-3 font-medium text-slate-800">{userData.fullName}</td>
                                     </tr>
                                     <tr className="border-b border-slate-100">
                                         <td className="py-3 text-slate-500">Full Name</td>
-                                        <td className="py-3 font-medium text-slate-800">{userData.fullName}</td>
+                                     <td className="py-3 font-medium text-slate-800">{userData.fullName}</td>
                                     </tr>
                                     <tr className="border-b border-slate-100">
                                         <td className="py-3 text-slate-500">Password</td>
