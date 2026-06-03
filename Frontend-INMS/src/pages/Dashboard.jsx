@@ -60,10 +60,9 @@ const userEmail = msUser?.username || "";
     });
   };
 
-  const handleLogout = () => {
-  instance.logoutRedirect({
-  postLogoutRedirectUri: "/login",
-});
+const handleLogout = () => {
+  localStorage.clear();
+  navigate("/login");
 };
 
   const toggleDownNodes = () => {
