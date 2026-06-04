@@ -67,6 +67,31 @@ public class UserService : IUserService
         return (await _repository.GetById(id))!;
     }
 
+    public async Task<UserResponseDto?> GetByEmail(string email)
+{
+    var users = await _repository.GetAll();
+
+    var user = users.FirstOrDefault(u =>
+        u.Email != null &&
+        u.Email.ToLower() == email.ToLower());
+
+    if (user == null)
+        return null;
+
+    return new UserResponseDto(
+        user.UserId,
+        user.Username,
+        user.FullName,
+        user.RoleId,
+        user.Role?.RoleName,
+        user.ServiceId,
+        user.Email,
+        null,
+        null,
+        null
+    );
+}
+
     public async Task Create(string username, string password, int roleId)
     {
         var user = new User

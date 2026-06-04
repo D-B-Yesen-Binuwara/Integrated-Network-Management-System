@@ -5,6 +5,7 @@ namespace INMS.Application.Services;
 
 public interface IUserService
 {
+    Task<UserResponseDto?> GetByEmail(string email);
     Task<List<UserResponseDto>> GetAll();
     Task<User> GetById(int id);
     Task Create(string username, string password, int roleId);

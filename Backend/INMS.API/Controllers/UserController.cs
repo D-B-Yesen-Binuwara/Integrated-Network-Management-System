@@ -29,6 +29,17 @@ public class UserController : ControllerBase
         return Ok(await _service.GetById(id));
     }
 
+    [HttpGet("email/{email}")]
+public async Task<IActionResult> GetByEmail(string email)
+{
+    var user = await _service.GetByEmail(email);
+
+    if (user == null)
+        return NotFound();
+
+    return Ok(user);
+}
+
     // Create a new user from DTO (FirstName, LastName, RoleId, ServiceId, Areas)
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateUserDto dto)
