@@ -12,10 +12,15 @@ import Register from '../pages/Register';
 import Login from '../pages/Login';
 import Chat from '../components/Chat';
 import EventPage from '../pages/EventPage';
+import UserVerification from "../pages/UserVerification";
 
 const AppRoutes = () => {
   return (
     <Routes>
+      <Route
+  path="/verify-user"
+  element={<UserVerification />}
+/>
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="/dashboard" element={<Dashboard />} />
       <Route path="/network-map" element={<NetworkMap />} />
