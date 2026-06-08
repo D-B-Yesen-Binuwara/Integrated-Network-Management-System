@@ -11,7 +11,14 @@ const msalInstance = new PublicClientApplication(msalConfig);
 
 // initialize() MUST fully complete before rendering.
 // MSAL v3: loginPopup silently does nothing if called on an uninitialized instance.
-msalInstance.initialize().then(() => {
+msalInstance.initialize().then(async () => {
+
+  const response = await msalInstance.handleRedirectPromise();
+
+  if (response?.account) {
+    msalInstance.setActiveAccount(response.account);
+  }
+
   createRoot(document.getElementById("root")).render(
     <StrictMode>
       <MsalProvider instance={msalInstance}>

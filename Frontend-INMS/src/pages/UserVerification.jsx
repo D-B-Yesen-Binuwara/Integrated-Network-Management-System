@@ -23,7 +23,8 @@ useEffect(() => {
   if (!msalReady) return;
 
   console.log("Accounts:", accounts);
-
+  console.log("Active Account:", instance.getActiveAccount());
+console.log("All Accounts:", instance.getAllAccounts());
   //if (!accounts || accounts.length === 0) {
   //console.log("No Microsoft account found");
   //navigate("/login", { replace: true });
@@ -32,12 +33,21 @@ useEffect(() => {
 
 //const email = accounts[0]?.username;
 
-//if (!email) {
- // console.log("No email found");
- // navigate("/login", { replace: true });
-  //return;
-//}
-const email = "thulasi20020923@outlook.com";
+if (!accounts || accounts.length === 0) {
+  console.log("No Microsoft account found");
+  navigate("/login", { replace: true });
+  return;
+}
+
+const email = accounts[0]?.username;
+
+if (!email) {
+  console.log("No email found");
+  navigate("/login", { replace: true });
+  return;
+}
+
+console.log("Email:", email);
   const verify = async () => {
     try {
       const response = await fetch(
@@ -77,17 +87,27 @@ const email = "thulasi20020923@outlook.com";
   verify();
 }, [msalReady, accounts, navigate]);
 
-  const handleContinue = () => {
-    sessionStorage.setItem("verified", "true");
-    sessionStorage.setItem("userEmail", accounts[0]?.username || "");
-    navigate("/dashboard", { replace: true });
-  };
+ const handleContinue = () => {
+  sessionStorage.setItem("verified", "true");
+  sessionStorage.setItem("userEmail", accounts[0]?.username || "");
 
-  const handleLogout = async () => {
-    sessionStorage.clear();
-    await instance.logoutPopup();
-    navigate("/login", { replace: true });
-  };
+  localStorage.setItem(
+    "user",
+    JSON.stringify({
+      serviceId: user.serviceId,
+      email: user.email,
+      fullName: user.fullName,
+      role: user.roleName,
+    })
+  );
+
+  navigate("/dashboard", { replace: true });
+};
+
+ const handleLogout = () => {
+  sessionStorage.clear();
+  navigate("/login", { replace: true });
+};
 
   if (status === "loading") {
     return (

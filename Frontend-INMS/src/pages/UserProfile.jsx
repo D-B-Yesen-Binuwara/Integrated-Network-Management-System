@@ -16,6 +16,8 @@ const UserProfile = () => {
 
 useEffect(() => {
   const user = JSON.parse(localStorage.getItem("user"));
+console.log("USER =", user);
+console.log("PASSWORD =", user?.password);
 
 if (user) {
   setUserData({
@@ -82,6 +84,7 @@ if (user) {
     const errors = {};
 
     const user = JSON.parse(localStorage.getItem("user")); // 🔥 GET REAL USER
+console.log("USER DATA", user);
 
     // 🔴 CHECK OLD PASSWORD
     if (!passwordFields.oldPassword) {
@@ -205,7 +208,11 @@ const handleDeleteProfile = () => {
                                                     {showPassword ? userData.passwordHash : '••••••••••••'}
                                                 </span>
                                                 <button
-                                                    onClick={() => setShowPassword(!showPassword)}
+                                                   onClick={() => {
+  console.log("EYE CLICKED");
+  console.log("PASSWORD =", userData.passwordHash);
+  setShowPassword(!showPassword);
+}}
                                                     className="text-slate-400 hover:text-emerald-500 transition-colors focus:outline-none bg-slate-50 p-1.5 rounded-md border border-slate-200 hover:border-emerald-200 hover:bg-emerald-50"
                                                     title={showPassword ? "Hide password" : "Show password"}
                                                 >
