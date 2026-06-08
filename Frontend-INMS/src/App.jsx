@@ -1,33 +1,16 @@
-import { useState } from 'react';
-import { BrowserRouter as Router, useLocation } from 'react-router-dom';
-import Navbar from './components/Navbar';
-import Sidebar from './components/Sidebar';
-import FloatingChatbot from './components/chat/FloatingChatbot';
-import AppRoutes from './routes/AppRoutes';
-import { useMsal } from "@azure/msal-react";
-import { loginRequest } from "./authConfig";
+import { useState } from "react";
+import { BrowserRouter as Router, useLocation } from "react-router-dom";
+import Navbar from "./components/Navbar";
+import Sidebar from "./components/Sidebar";
+import FloatingChatbot from "./components/chat/FloatingChatbot";
+import AppRoutes from "./routes/AppRoutes";
 
-// import './App.css';
+const AUTH_PATHS = ["/login", "/register", "/verify-user"];
 
 function AppContent() {
   const [collapsed, setCollapsed] = useState(true);
   const location = useLocation();
-
-  const { instance, accounts } = useMsal();
-
-const handleMicrosoftLogin = async () => {
-  try {
-    await instance.loginPopup(loginRequest);
-    console.log(accounts);
-    alert("Microsoft Login Success");
-  } catch (error) {
-    console.log(error);
-  }
-};
-  
-  // Pages that should not show sidebar
-  const authPages = ['/login', '/register'];
-  const isAuthPage = authPages.includes(location.pathname);
+  const isAuthPage = AUTH_PATHS.includes(location.pathname);
 
   if (isAuthPage) {
     return (
@@ -40,19 +23,14 @@ const handleMicrosoftLogin = async () => {
     );
   }
 
- return (
-  <>
-   
-
+  return (
     <div className="h-screen flex flex-col bg-gray-50 text-gray-900">
-      <Navbar onToggle={() => setCollapsed(p => !p)} />
-
-      <div className="flex flex-1 pt-16">
+      <Navbar onToggle={() => setCollapsed((p) => !p)} />
+      <div className="flex flex-1 pt-16 overflow-hidden">
         <Sidebar collapsed={collapsed} />
-
         <main
-          className={`flex-1 main-content p-6 transition-all duration-300 ${
-            collapsed ? 'ml-16' : 'ml-64'
+          className={`flex-1 main-content p-6 overflow-y-auto transition-all duration-300 ${
+            collapsed ? "ml-16" : "ml-64"
           }`}
         >
           <AppRoutes />
@@ -60,13 +38,11 @@ const handleMicrosoftLogin = async () => {
       </div>
       <FloatingChatbot />
     </div>
-  </>
-);
+  );
 }
 
 function App() {
   return (
-    
     <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <AppContent />
     </Router>

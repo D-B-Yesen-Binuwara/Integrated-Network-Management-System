@@ -1,11 +1,13 @@
 using INMS.Application.Services;
 using INMS.Application.DTOs;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace INMS.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize]
 public class UserController : ControllerBase
 {
     private readonly IUserService _service;
@@ -15,41 +17,43 @@ public class UserController : ControllerBase
         _service = service;
     }
 
-    // Fetch all users
     [HttpGet]
     public async Task<IActionResult> GetAll()
     {
         return Ok(await _service.GetAll());
     }
 
-    // Fetch a single user by ID
-    [HttpGet("{id}")]
+    [HttpGet("{id:int}")]
     public async Task<IActionResult> Get(int id)
     {
         return Ok(await _service.GetById(id));
     }
 
+    // AllowAnonymous: called immediately after Microsoft login.
+    // The user has a valid Microsoft token but no application JWT yet.
     [HttpGet("email/{email}")]
-public async Task<IActionResult> GetByEmail(string email)
-{
-    var user = await _service.GetByEmail(email);
+    [AllowAnonymous]
+    public async Task<IActionResult> GetByEmail(string email)
+    {
+        if (string.IsNullOrWhiteSpace(email))
+            return BadRequest(new { message = "Email is required." });
 
-    if (user == null)
-        return NotFound();
+        var user = await _service.GetByEmail(email);
 
-    return Ok(user);
-}
+        if (user == null)
+            return NotFound(new { message = "User not found." });
 
-    // Create a new user from DTO (FirstName, LastName, RoleId, ServiceId, Areas)
+        return Ok(user);
+    }
+
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateUserDto dto)
     {
         await _service.CreateFromDto(dto);
-        return Ok(new { message = "User created successfully" });
+        return Ok(new { message = "User created successfully." });
     }
 
-    // Delete a user by ID
-    [HttpDelete("{id}")]
+    [HttpDelete("{id:int}")]
     public async Task<IActionResult> Delete(int id)
     {
         await _service.Delete(id);
