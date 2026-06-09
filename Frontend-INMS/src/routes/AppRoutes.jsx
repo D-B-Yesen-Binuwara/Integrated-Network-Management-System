@@ -12,11 +12,16 @@ import Register from '../pages/Register';
 import Login from '../pages/Login';
 import Chat from '../components/Chat';
 import EventPage from '../pages/EventPage';
+import UserVerification from "../pages/UserVerification";
 
 const AppRoutes = () => {
   return (
     <Routes>
-      <Route path="/" element={<Navigate to="/dashboard" replace />} />
+      <Route
+  path="/verify-user"
+  element={<UserVerification />}
+/><Route path="/verify-user" element={<UserVerification />} />
+      <Route path="/" element={<Navigate to="/login" replace />} />
       <Route path="/dashboard" element={<Dashboard />} />
       <Route path="/network-map" element={<NetworkMap />} />
       <Route path="/impact-analysis" element={<ImpactAnalysis />} />
@@ -30,7 +35,7 @@ const AppRoutes = () => {
       <Route path="/home" element={<PlaceholderPage title="Home" />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
   );
 };

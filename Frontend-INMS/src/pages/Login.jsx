@@ -10,6 +10,17 @@ function Login() {
 
 const [isMicrosoftLoggedIn, setIsMicrosoftLoggedIn] = useState(false);
 
+useEffect(() => {
+  const accounts = instance.getAllAccounts();
+
+  console.log("Login Page Accounts:", accounts);
+console.log("Accounts Count =", accounts.length);
+
+  if (accounts.length > 0) {
+    navigate("/verify-user");
+  }
+}, [instance, navigate]);
+
 const handleMicrosoftLogin = async () => {
   try {
 
