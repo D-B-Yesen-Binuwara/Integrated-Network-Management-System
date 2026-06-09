@@ -12,6 +12,8 @@ function UserVerification() {
   const [status, setStatus] = useState("loading");
 
  const [msalReady, setMsalReady] = useState(false);
+const [serviceId, setServiceId] = useState("");
+const [userData, setUserData] = useState(null);
 
 useEffect(() => {
   // Give MSAL one tick to populate accounts after loginPopup resolves
@@ -66,18 +68,14 @@ console.log("Email:", email);
 
       const data = await response.json();
 
-      if (!data.serviceId) {
-        setStatus("incomplete");
-        return;
-      }
-
       if (!data.roleId) {
-        setStatus("incomplete");
-        return;
-      }
+  setStatus("incomplete");
+  return;
+}
 
-      setUser(data);
-      setStatus("found");
+setUserData(data);
+setStatus("service_check");
+
     } catch (err) {
       console.error("UserVerification error:", err);
       setStatus("error");
@@ -170,7 +168,39 @@ console.log("Email:", email);
       </div>
     );
   }
+if (status === "service_check") {
+  return (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="bg-white p-6 rounded shadow w-96">
+        <h2 className="text-xl font-bold mb-4">
+          Enter Service ID
+        </h2>
 
+        <input
+          type="text"
+          value={serviceId}
+          onChange={(e) => setServiceId(e.target.value)}
+          placeholder="Enter Service ID"
+          className="border p-2 w-full mb-4"
+        />
+
+        <button
+          onClick={() => {
+            if (serviceId === userData.serviceId) {
+              setUser(userData);
+              setStatus("found");
+            } else {
+              alert("Invalid Service ID");
+            }
+          }}
+          className="bg-blue-600 text-white px-4 py-2 rounded w-full"
+        >
+          Verify
+        </button>
+      </div>
+    </div>
+  );
+}
   if (status === "error") {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">

@@ -20,8 +20,8 @@ const AppRoutes = () => {
       <Route
   path="/verify-user"
   element={<UserVerification />}
-/>
-      <Route path="/" element={<Navigate to="/verify-user" replace />} />
+/><Route path="/verify-user" element={<UserVerification />} />
+      <Route path="/" element={<Navigate to="/login" replace />} />
       <Route path="/dashboard" element={<Dashboard />} />
       <Route path="/network-map" element={<NetworkMap />} />
       <Route path="/impact-analysis" element={<ImpactAnalysis />} />
@@ -35,7 +35,7 @@ const AppRoutes = () => {
       <Route path="/home" element={<PlaceholderPage title="Home" />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
-      <Route path="*" element={<Navigate to="/verify-user" replace />} />
+      <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
   );
 };
