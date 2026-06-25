@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from "react-router-dom";
 
 function RegionRegister({ onBack }) {
   const navigate = useNavigate();
+
   const [fullName, setFullName] = useState("");
   const [lastName, setLastName] = useState("");
   const [serviceId, setServiceId] = useState("");
@@ -11,7 +12,7 @@ function RegionRegister({ onBack }) {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [region, setRegion] = useState("");
 
-  const handleRegister = (e) => {
+  const handleRegister = async (e) => {
     e.preventDefault();
 
     if (password !== confirmPassword) {
@@ -19,20 +20,44 @@ function RegionRegister({ onBack }) {
       return;
     }
 
-    const user = {
-      fullName,
-      lastName,
-      serviceId,
-      email,
-      password,
-      region,
-      role: "Region Officer",
-    };
+    try {
+      const response = await fetch(
+        "http://localhost:5289/api/AccountRequest",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
 
-    localStorage.setItem("user", JSON.stringify(user));
+          body: JSON.stringify({
+            fullName: fullName + " " + lastName,
+            email: email,
+            serviceId: serviceId,
 
-    alert("Registered Successfully ✅");
-    navigate("/login");
+            roleId: 2,
+
+            regionId: Number(region),
+
+            provinceId: null,
+            leaId: null,
+          }),
+        }
+      );
+
+      if (response.ok) {
+        alert("Request Sent Successfully ✅");
+        navigate("/login");
+      } else {
+        const errorText = await response.text();
+        console.log(errorText);
+
+        alert("Failed to send request");
+      }
+    } catch (error) {
+      console.error(error);
+
+      alert("Server Error");
+    }
   };
 
   return (
@@ -49,6 +74,7 @@ function RegionRegister({ onBack }) {
               <label className="block text-sm font-medium text-slate-600 mb-2">
                 Full Name
               </label>
+
               <input
                 type="text"
                 placeholder="Enter your Full Name"
@@ -63,6 +89,7 @@ function RegionRegister({ onBack }) {
               <label className="block text-sm font-medium text-slate-600 mb-2">
                 Last Name
               </label>
+
               <input
                 type="text"
                 placeholder="Enter your last name"
@@ -77,6 +104,7 @@ function RegionRegister({ onBack }) {
               <label className="block text-sm font-medium text-slate-600 mb-2">
                 Service ID
               </label>
+
               <input
                 type="text"
                 placeholder="Enter your Service ID"
@@ -91,6 +119,7 @@ function RegionRegister({ onBack }) {
               <label className="block text-sm font-medium text-slate-600 mb-2">
                 Region
               </label>
+
               <select
                 value={region}
                 onChange={(e) => setRegion(e.target.value)}
@@ -98,15 +127,16 @@ function RegionRegister({ onBack }) {
                 className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-200 outline-none transition-all duration-200 text-slate-700"
               >
                 <option value="">Select Region</option>
-                <option value="Western">Western</option>
-                <option value="Central">Central</option>
-                <option value="Southern">Southern</option>
-                <option value="Northern">Northern</option>
-                <option value="Eastern">Eastern</option>
-                <option value="North Western">North Western</option>
-                <option value="North Central">North Central</option>
-                <option value="Uva">Uva</option>
-                <option value="Sabaragamuwa">Sabaragamuwa</option>
+
+                <option value="1">Western</option>
+                <option value="2">Central</option>
+                <option value="3">Southern</option>
+                <option value="4">Northern</option>
+                <option value="5">Eastern</option>
+                <option value="6">North Western</option>
+                <option value="7">North Central</option>
+                <option value="8">Uva</option>
+                <option value="9">Sabaragamuwa</option>
               </select>
             </div>
 
@@ -114,6 +144,7 @@ function RegionRegister({ onBack }) {
               <label className="block text-sm font-medium text-slate-600 mb-2">
                 Email Address
               </label>
+
               <input
                 type="email"
                 placeholder="Enter your email"
@@ -128,6 +159,7 @@ function RegionRegister({ onBack }) {
               <label className="block text-sm font-medium text-slate-600 mb-2">
                 Password
               </label>
+
               <input
                 type="password"
                 placeholder="Create a password"
@@ -142,6 +174,7 @@ function RegionRegister({ onBack }) {
               <label className="block text-sm font-medium text-slate-600 mb-2">
                 Confirm Password
               </label>
+
               <input
                 type="password"
                 placeholder="Confirm your password"
@@ -154,7 +187,7 @@ function RegionRegister({ onBack }) {
 
             <button
               type="submit"
-              className="w-full py-3 px-4 bg-gradient-to-r from-slate-800 via-sky-800 to-slate-700 text-white font-semibold rounded-lg shadow-md hover:from-slate-900 hover:via-sky-900 hover:to-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-400 focus:ring-offset-2 transition-all duration-200"
+              className="w-full py-3 px-4 bg-gradient-to-r from-sky-600 to-emerald-500 text-white font-semibold rounded-lg shadow-md hover:from-sky-700 hover:to-emerald-600 focus:outline-none focus:ring-2 focus:ring-sky-400 focus:ring-offset-2 transition-all duration-200"
             >
               Register
             </button>
@@ -180,6 +213,7 @@ function RegionRegister({ onBack }) {
                   d="M10 19l-7-7m0 0l7-7m-7 7h18"
                 />
               </svg>
+
               Back to Role Selection
             </button>
           </div>

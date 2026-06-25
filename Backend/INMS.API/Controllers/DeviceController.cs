@@ -36,6 +36,17 @@ namespace INMS.API.Controllers
         [HttpGet("map")]
         public async Task<IActionResult> GetMapData() => Ok(await _deviceService.GetDevicesForMapAsync());
 
+        // Fetch paged devices with optional filtering and sorting
+        [HttpGet("paged")]
+        public async Task<IActionResult> GetPaged([FromQuery] int page = 1, [FromQuery] int pageSize = 20,
+            [FromQuery] DeviceStatus? status = null, [FromQuery] int? leaId = null,
+            [FromQuery] int? assignedUserId = null, [FromQuery] string? sortBy = null, [FromQuery] string? order = "asc")
+        {
+            var queryParams = new DeviceQueryParams(page, pageSize, status, leaId, assignedUserId, sortBy, order);
+            var result = await _deviceService.GetPagedDevicesAsync(queryParams);
+            return Ok(result);
+        }
+
         // Fetch a single device by ID
         [HttpGet("{id:int}")]
         public async Task<IActionResult> GetById(int id)

@@ -14,26 +14,36 @@ const UserProfile = () => {
         confirmPassword: ''
     });
 
-    useEffect(() => {
-        // Simulate an API call mapping to User.cs
-        setTimeout(() => {
-            setUserData({
-                userId: '748392',
-                username: 'janedoe99',
-                fullName: 'Jane Doe',
-                passwordHash: 'N0c0perat0r_pwd!', // Simulated real password
-                roleId: 'ROLE_ENGINEER_2',
-                role: 'Network Operations Engineer',
-                stats: {
-                    alarmsResolved: 342,
-                    activeSimulations: 3,
-                    criticalAlertsHandled: 89,
-                    uptimeContributions: '99.98%'
-                }
-            });
-            setLoading(false);
-        }, 500);
-    }, []);
+useEffect(() => {
+  const user = JSON.parse(localStorage.getItem("user"));
+console.log("USER =", user);
+console.log("PASSWORD =", user?.password);
+
+if (user) {
+  setUserData({
+    userId: user.serviceId || "N/A",
+
+    username: user.email || "N/A",
+
+    fullName: user.fullName || "User",
+
+    passwordHash: user.password || "",
+
+    role: user.role || "User",
+
+    stats: {}
+  });
+}
+   else {
+    setUserData({
+      fullName: "No User",
+      username: "N/A",
+      role: "N/A"
+    });
+  }
+
+  setLoading(false);
+}, []);
 
     const handleEditClick = () => {
         setEditFormData({ ...userData });
@@ -70,42 +80,80 @@ const UserProfile = () => {
         setIsEditModalOpen(false);
     };
 
-    const handleSavePassword = () => {
-        const errors = {};
+   const handleSavePassword = () => {
+    const errors = {};
 
-        if (!passwordFields.oldPassword) {
-            errors.oldPassword = 'Old password cannot be empty.';
-        } else if (passwordFields.oldPassword !== userData.passwordHash) {
-            errors.oldPassword = 'Old password does not match your current password.';
-        }
+    const user = JSON.parse(localStorage.getItem("user")); // 🔥 GET REAL USER
+console.log("USER DATA", user);
 
-        const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#?&])[A-Za-z\d@$!%*#?&]{8,}$/;
-        if (!passwordFields.newPassword) {
-            errors.newPassword = 'New password cannot be empty.';
-        } else if (!passwordRegex.test(passwordFields.newPassword)) {
-            errors.newPassword = 'Password must be at least 8 chars and include a letter, number, and special character.';
-        }
+    // 🔴 CHECK OLD PASSWORD
+    if (!passwordFields.oldPassword) {
+        errors.oldPassword = 'Old password cannot be empty.';
+    } else if (passwordFields.oldPassword !== user.password) {
+        errors.oldPassword = 'Old password does not match your current password.';
+    }
 
-        if (!passwordFields.confirmPassword) {
-            errors.confirmPassword = 'Confirm password cannot be empty.';
-        } else if (passwordFields.newPassword !== passwordFields.confirmPassword) {
-            errors.confirmPassword = 'New password and confirm password do not match.';
-        }
+    // 🔴 PASSWORD VALIDATION
+    const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#?&]).{8,}$/;
 
-        if (Object.keys(errors).length > 0) {
-            setFormErrors(errors);
-            return;
-        }
+    if (!passwordFields.newPassword) {
+        errors.newPassword = 'New password cannot be empty.';
+    } else if (!passwordRegex.test(passwordFields.newPassword)) {
+        errors.newPassword = 'Password must be at least 8 chars and include a letter, number, and special character.';
+    }
 
-        setUserData(prev => ({ ...prev, passwordHash: passwordFields.newPassword }));
-        setIsPasswordModalOpen(false);
+    // 🔴 CONFIRM PASSWORD
+    if (!passwordFields.confirmPassword) {
+        errors.confirmPassword = 'Confirm password cannot be empty.';
+    } else if (passwordFields.newPassword !== passwordFields.confirmPassword) {
+        errors.confirmPassword = 'New password and confirm password do not match.';
+    }
+
+    if (Object.keys(errors).length > 0) {
+        setFormErrors(errors);
+        return;
+    }
+
+    // 🔥 UPDATE LOCAL STORAGE PASSWORD
+    const updatedUser = {
+        ...user,
+        password: passwordFields.newPassword
     };
+
+    localStorage.setItem("user", JSON.stringify(updatedUser));
+
+    // 🔥 UPDATE UI PASSWORD (optional)
+    setUserData(prev => ({
+        ...prev,
+        passwordHash: "********"
+    }));
+
+    alert("Password updated successfully ✅");
+
+    setIsPasswordModalOpen(false);
+};
 
     const handleCloseModal = () => {
         setIsEditModalOpen(false);
         setEditFormData(null);
         setFormErrors({});
     };
+
+    // 🔥 DELETE PROFILE FUNCTION
+const handleDeleteProfile = () => {
+    const confirmDelete = window.confirm("Are you sure you want to delete your profile?");
+
+    if (!confirmDelete) return;
+
+    // remove user from localStorage
+    localStorage.removeItem("user");
+    localStorage.removeItem("userId");
+
+    alert("Profile deleted successfully");
+
+    // redirect to login page
+    window.location.href = "/login";
+};
 
     const handleClosePasswordModal = () => {
         setIsPasswordModalOpen(false);
@@ -160,7 +208,11 @@ const UserProfile = () => {
                                                     {showPassword ? userData.passwordHash : '••••••••••••'}
                                                 </span>
                                                 <button
-                                                    onClick={() => setShowPassword(!showPassword)}
+                                                   onClick={() => {
+  console.log("EYE CLICKED");
+  console.log("PASSWORD =", userData.passwordHash);
+  setShowPassword(!showPassword);
+}}
                                                     className="text-slate-400 hover:text-emerald-500 transition-colors focus:outline-none bg-slate-50 p-1.5 rounded-md border border-slate-200 hover:border-emerald-200 hover:bg-emerald-50"
                                                     title={showPassword ? "Hide password" : "Show password"}
                                                 >
@@ -193,9 +245,11 @@ const UserProfile = () => {
                                     className="flex-1 bg-white hover:bg-slate-50 text-slate-700 text-sm font-semibold py-2.5 rounded-lg border border-slate-300 shadow-sm transition-all hover:shadow">
                                     Edit Profile
                                 </button>
-                                <button className="flex-1 bg-white hover:bg-red-50 text-red-600 text-sm font-semibold py-2.5 rounded-lg border border-red-200 shadow-sm transition-all hover:border-red-300">
-                                    Delete Profile
-                                </button>
+                               <button 
+    onClick={handleDeleteProfile}
+    className="flex-1 bg-white hover:bg-red-50 text-red-600 text-sm font-semibold py-2.5 rounded-lg border border-red-200 shadow-sm transition-all hover:border-red-300">
+    Delete Profile
+</button>
                             </div>
                         </div>
                     </div>
@@ -336,11 +390,16 @@ const UserProfile = () => {
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-1.5">Confirm Password</label>
                                 <input
-                                    type="password"
-                                    value={passwordFields.confirmPassword}
-                                    onChange={(e) => setPasswordFields(prev => ({ ...prev, confirmPassword: e.target.value }))}
-                                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-colors"
-                                />
+  type="password"
+  value={passwordFields.confirmPassword}
+  onChange={(e) =>
+    setPasswordFields(prev => ({
+      ...prev,
+      confirmPassword: e.target.value
+    }))
+  }
+  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-colors"
+/>
                                 {formErrors.confirmPassword && <p className="text-sm text-red-500 mt-1.5">{formErrors.confirmPassword}</p>}
                             </div>
                         </div>

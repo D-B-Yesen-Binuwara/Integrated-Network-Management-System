@@ -16,10 +16,23 @@ import {
   getTypeBadgeClass,
   getPriorityBadgeClass
 } from '../utils/formatters';
+import { useMsal } from "@azure/msal-react";
 
 const Dashboard = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+const { instance } = useMsal();
+
+const msUser = JSON.parse(localStorage.getItem("msUser"));
+
+
+console.log(msUser);
+
+console.log(instance.getAllAccounts());
+
+const userName = msUser?.name || "User";
+
+const userEmail = msUser?.username || "";
 
   const [devices, setDevices] = useState([]);
   const [alarms, setAlarms] = useState([]);
@@ -46,6 +59,11 @@ const Dashboard = () => {
       return next;
     });
   };
+
+const handleLogout = () => {
+  localStorage.clear();
+  navigate("/login");
+};
 
   const toggleDownNodes = () => {
     setIsDownNodesExpanded((prev) => {
@@ -203,6 +221,29 @@ const Dashboard = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
+
+      {/* Microsoft Logged User */}
+<div className="bg-white shadow rounded-xl p-4 mb-4 flex justify-between items-center">
+
+  <div>
+    <h2 className="text-lg font-bold text-gray-800">
+      Welcome {userName}
+    </h2>
+
+    <p className="text-sm text-gray-500">
+      {userEmail}
+    </p>
+  </div>
+
+  <button
+    onClick={handleLogout}
+    className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg"
+  >
+    Logout
+  </button>
+
+</div>
+
       {/* Loading */}
       {loading && (
         <div className="flex items-center justify-center py-20 text-gray-500">

@@ -10,28 +10,32 @@ import CorrelationPage from '../pages/CorrelationPage';
 import VendorsPage from '../pages/Vendors/VendorsPage';
 import Register from '../pages/Register';
 import Login from '../pages/Login';
+import Chat from '../components/Chat';
 import EventPage from '../pages/EventPage';
+import UserVerification from "../pages/UserVerification";
 
 const AppRoutes = () => {
   return (
     <Routes>
-      <Route path="/" element={<Navigate to="/dashboard" replace />} />
+      <Route
+  path="/verify-user"
+  element={<UserVerification />}
+/><Route path="/verify-user" element={<UserVerification />} />
+      <Route path="/" element={<Navigate to="/login" replace />} />
       <Route path="/dashboard" element={<Dashboard />} />
       <Route path="/network-map" element={<NetworkMap />} />
       <Route path="/impact-analysis" element={<ImpactAnalysis />} />
       <Route path="/device-management" element={<DeviceManagement />} />
       <Route path="/correlation" element={<CorrelationPage />} />
       <Route path="/vendors" element={<VendorsPage />} />
+      <Route path="/chat" element={<Chat />} />
       <Route path="/profile" element={<UserProfile />} />
       <Route path="/user-management" element={<UserManagement />} />
       <Route path="/events" element={<EventPage />} />
       <Route path="/home" element={<PlaceholderPage title="Home" />} />
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
-
-
-      {/* <Route path="/" element={<Navigate to="/login" replace />} /> */}
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
+      <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
   );
 };
